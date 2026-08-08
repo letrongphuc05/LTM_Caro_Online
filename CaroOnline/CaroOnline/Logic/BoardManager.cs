@@ -15,15 +15,13 @@ namespace CaroOnline.Logic
 
         public bool IsMyTurn { get; set; } = false;
         public string MySymbol { get; set; } = "X";
-
-        // Thêm dấu ? để sửa lỗi Non-nullable event
         public event EventHandler<Point>? PlayerMarked;
         public event EventHandler<string>? GameEnded;
 
         public BoardManager(Panel panel)
         {
             this.chessBoard = panel;
-            this.matrix = new List<List<Button>>(); // Khởi tạo matrix ngay trong constructor
+            this.matrix = new List<List<Button>>(); 
         }
 
         public void DrawChessBoard()
@@ -69,7 +67,7 @@ namespace CaroOnline.Logic
                         Tag = new Point(j, i),
                         Font = new Font("Arial", 11, FontStyle.Bold),
                         FlatStyle = FlatStyle.Flat,
-                        BackColor = Color.FromArgb(245, 222, 179), // Wheat color
+                        BackColor = Color.FromArgb(245, 222, 179), 
                         ForeColor = Color.Black,
                         Cursor = Cursors.Hand,
                         Text = ""
@@ -94,7 +92,6 @@ namespace CaroOnline.Logic
             }
         }
 
-        // Thêm object? sender để sửa lỗi Delegate mismatch
         private void Btn_Click(object? sender, EventArgs e)
         {
             if (!IsMyTurn) return;
@@ -139,16 +136,16 @@ namespace CaroOnline.Logic
 
             if (symbol == "X")
             {
-                btn.ForeColor = Color.FromArgb(178, 34, 34); // Firebrick red
+                btn.ForeColor = Color.FromArgb(178, 34, 34); 
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
-                btn.BackColor = Color.FromArgb(255, 245, 238); // Seashell - very light red
+                btn.BackColor = Color.FromArgb(255, 245, 238);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(200, 100, 100);
             }
             else // "O"
             {
-                btn.ForeColor = Color.FromArgb(25, 25, 112); // Midnight blue
+                btn.ForeColor = Color.FromArgb(25, 25, 112); 
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
-                btn.BackColor = Color.FromArgb(240, 248, 255); // Alice blue - very light blue
+                btn.BackColor = Color.FromArgb(240, 248, 255);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(100, 149, 237);
             }
         }
