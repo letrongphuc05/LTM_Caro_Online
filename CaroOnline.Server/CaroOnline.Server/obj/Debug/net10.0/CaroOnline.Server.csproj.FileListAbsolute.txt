@@ -1,0 +1,14 @@
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\bin\Debug\net10.0\CaroOnline.Server.exe
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\bin\Debug\net10.0\CaroOnline.Server.deps.json
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\bin\Debug\net10.0\CaroOnline.Server.runtimeconfig.json
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\bin\Debug\net10.0\CaroOnline.Server.dll
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\bin\Debug\net10.0\CaroOnline.Server.pdb
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.AssemblyInfoInputs.cache
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.AssemblyInfo.cs
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.csproj.CoreCompileInputs.cache
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.dll
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\refint\CaroOnline.Server.dll
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.pdb
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\CaroOnline.Server.genruntimeconfig.cache
+C:\Users\letan\Downloads\LTM_Caro_Online-main\LTM_Caro_Online-main\CaroOnline.Server\CaroOnline.Server\obj\Debug\net10.0\ref\CaroOnline.Server.dll
