@@ -1,17 +1,22 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Drawing;
+using CaroOnline.Server.Network;
+
 namespace CaroServerAdmin
 {
 
     public partial class FrmAdminDashboard : Form
     {
-        private TcpListener? _listener;
-        private bool _serverRunning = false;
+        private ServerController _serverController;
+        private TcpClient? _testClient;
 
         public FrmAdminDashboard()
         {
             InitializeComponent();
+
+            _serverController = new ServerController();
+
             AddLog("Admin Dashboard initialized.");
         }
         private void AddLog(string message)
@@ -58,11 +63,7 @@ namespace CaroServerAdmin
                     return;
                 }
 
-                _listener = new TcpListener(ipAddress, port);
-
-                _listener.Start();
-
-                _serverRunning = true;
+                _serverController.Start(ipAddress.ToString(), port);
 
                 lblServerStatus.Text = "LISTENING";
                 lblServerStatus.ForeColor = Color.Green;
@@ -106,13 +107,7 @@ namespace CaroServerAdmin
         {
             try
             {
-                if (_listener != null)
-                {
-                    _listener.Stop();
-                    _listener = null;
-                }
-
-                _serverRunning = false;
+                _serverController.Stop();
 
                 lblServerStatus.Text = "STOPPED";
                 lblServerStatus.ForeColor = Color.Red;
@@ -137,6 +132,72 @@ namespace CaroServerAdmin
                     "Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }
+        }
+
+        private void timerStatistics_Tick(object sender, EventArgs e)
+        {
+            lblClientsOnline.Text = _serverController.ClientCount.ToString();
+            lblTotalConnections.Text = _serverController.TotalConnections.ToString();
+        }
+
+        private async void btnConnectTestClient_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!_serverController.IsRunning)
+                {
+                    MessageBox.Show(
+                        "Hay START Server truoc.",
+                        "Thong bao",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+
+                    return;
+                }
+
+                string ip = txtIP.Text.Trim();
+                int port = int.Parse(txtPort.Text.Trim());
+
+                _testClient = new TcpClient();
+
+                await _testClient.ConnectAsync(ip, port);
+
+                btnConnectTestClient.Enabled = false;
+                btnDisconnectTestClient.Enabled = true;
+
+                AddLog("Test Client connected.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("TEST CONNECT ERROR: " + ex.Message);
+
+                MessageBox.Show(
+                    "Khong the ket noi Test Client.\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDisconnectTestClient_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_testClient != null)
+                {
+                    _testClient.Close();
+                    _testClient = null;
+                }
+
+                btnConnectTestClient.Enabled = true;
+                btnDisconnectTestClient.Enabled = false;
+
+                AddLog("Test Client disconnected.");
+            }
+            catch (Exception ex)
+            {
+                AddLog("TEST DISCONNECT ERROR: " + ex.Message);
             }
         }
     }
