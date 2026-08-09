@@ -15,15 +15,13 @@ namespace CaroOnline.Logic
 
         public bool IsMyTurn { get; set; } = false;
         public string MySymbol { get; set; } = "X";
-
-        // Thêm dấu ? để sửa lỗi Non-nullable event
         public event EventHandler<Point>? PlayerMarked;
         public event EventHandler<string>? GameEnded;
 
         public BoardManager(Panel panel)
         {
             this.chessBoard = panel;
-            this.matrix = new List<List<Button>>(); // Khởi tạo matrix ngay trong constructor
+            this.matrix = new List<List<Button>>();
         }
 
         public void DrawChessBoard()
@@ -54,22 +52,28 @@ namespace CaroOnline.Logic
             int startX = Math.Max(10, (panelWidth - totalWidth) / 2);
             int startY = Math.Max(10, (panelHeight - totalHeight) / 2);
 
-            Button oldButton = new Button() { Width = 0, Location = new Point(startX, startY) };
+            // Tọa độ Y bắt đầu
+            int currentY = startY;
 
             for (int i = 0; i < Cfg.CHESS_BOARD_HEIGHT; i++)
             {
                 matrix.Add(new List<Button>());
+
+                // Reset X về đầu dòng cho mỗi hàng mới
+                int currentX = startX;
+
                 for (int j = 0; j < Cfg.CHESS_BOARD_WIDTH; j++)
                 {
                     Button btn = new Button()
                     {
                         Width = buttonWidth,
                         Height = buttonHeight,
-                        Location = new Point(oldButton.Location.X + oldButton.Width, oldButton.Location.Y),
+                        // Sử dụng X, Y trực tiếp 
+                        Location = new Point(currentX, currentY),
                         Tag = new Point(j, i),
                         Font = new Font("Arial", 11, FontStyle.Bold),
                         FlatStyle = FlatStyle.Flat,
-                        BackColor = Color.FromArgb(245, 222, 179), // Wheat color
+                        BackColor = Color.FromArgb(245, 222, 179),
                         ForeColor = Color.Black,
                         Cursor = Cursors.Hand,
                         Text = ""
@@ -85,16 +89,16 @@ namespace CaroOnline.Logic
                     btn.Click += Btn_Click;
                     chessBoard.Controls.Add(btn);
                     matrix[i].Add(btn);
-                    oldButton = btn;
+
+                    // Cộng dồn X cho ô tiếp theo cùng một hàng
+                    currentX += buttonWidth;
                 }
-                // Move to next row
-                oldButton.Location = new Point(startX, oldButton.Location.Y + buttonHeight);
-                oldButton.Width = 0;
-                oldButton.Height = 0;
+
+                // Hết một hàng, cộng dồn Y để xuống dòng
+                currentY += buttonHeight;
             }
         }
 
-        // Thêm object? sender để sửa lỗi Delegate mismatch
         private void Btn_Click(object? sender, EventArgs e)
         {
             if (!IsMyTurn) return;
@@ -139,16 +143,16 @@ namespace CaroOnline.Logic
 
             if (symbol == "X")
             {
-                btn.ForeColor = Color.FromArgb(178, 34, 34); // Firebrick red
+                btn.ForeColor = Color.FromArgb(178, 34, 34);
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
-                btn.BackColor = Color.FromArgb(255, 245, 238); // Seashell - very light red
+                btn.BackColor = Color.FromArgb(255, 245, 238);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(200, 100, 100);
             }
             else // "O"
             {
-                btn.ForeColor = Color.FromArgb(25, 25, 112); // Midnight blue
+                btn.ForeColor = Color.FromArgb(25, 25, 112);
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
-                btn.BackColor = Color.FromArgb(240, 248, 255); // Alice blue - very light blue
+                btn.BackColor = Color.FromArgb(240, 248, 255);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(100, 149, 237);
             }
         }
