@@ -42,7 +42,7 @@ namespace CaroOnline
                 int port = int.Parse(portText);
 
                 // Gọi class quản lý mạng
-                if (CaroOnline.Network.NetworkManager.Instance.Connect(ip, port, username))
+                if (CaroOnline.Network.SocketManager.Instance.Connect(ip, port, username))
                 {
                     FormLobby lobby = new FormLobby();
                     this.Hide();

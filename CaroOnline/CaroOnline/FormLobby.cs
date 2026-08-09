@@ -12,11 +12,9 @@ namespace CaroOnline
         public FormLobby()
         {
             InitializeComponent();
-
-            // Đăng ký nhận sự kiện
-            NetworkManager.Instance.OnUpdateOnlineList += UpdateOnlineList;
-            NetworkManager.Instance.OnReceiveChallenge += HandleIncomingChallenge;
-            NetworkManager.Instance.OnUpdateRoomList += UpdateMatchRooms;
+            SocketManager.Instance.OnUpdateOnlineList += UpdateOnlineList;
+            SocketManager.Instance.OnReceiveChallenge += HandleIncomingChallenge;
+            SocketManager.Instance.OnUpdateRoomList += UpdateMatchRooms;
         }
 
         private void UpdateOnlineList(string[] players)
@@ -35,7 +33,7 @@ namespace CaroOnline
             if (lstOnlinePlayers.SelectedItem != null)
             {
                 string targetPlayer = lstOnlinePlayers.SelectedItem.ToString();
-                NetworkManager.Instance.SendChallenge(targetPlayer);
+                SocketManager.Instance.SendChallenge(targetPlayer);
                 MessageBox.Show($"Đã gửi lời mời thách đấu tới {targetPlayer}.", "Thông báo");
             }
             else
@@ -86,7 +84,7 @@ namespace CaroOnline
             if (lstMatchRooms.SelectedItem != null)
             {
                 string matchId = lstMatchRooms.SelectedItem.ToString();
-                NetworkManager.Instance.JoinRoomAsSpectator(matchId);
+                SocketManager.Instance.JoinRoomAsSpectator(matchId);
 
 
                 FormMain watchBoard = new FormMain();
