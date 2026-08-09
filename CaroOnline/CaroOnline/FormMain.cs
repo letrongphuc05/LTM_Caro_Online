@@ -377,6 +377,10 @@ namespace CaroOnline
 
         private void panel1_Paint(object sender, PaintEventArgs e)
         {
+            if (panel1.ClientRectangle.Width == 0 || panel1.ClientRectangle.Height == 0)
+            {
+                return;
+            }
             // Draw gradient background
             using (Brush brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                 panel1.ClientRectangle,

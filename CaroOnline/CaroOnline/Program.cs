@@ -15,7 +15,7 @@ namespace CaroOnline
             Application.SetCompatibleTextRenderingDefault(false);
 
             // Lệnh này bảo C# hãy mở cái cửa sổ FormMain lên khi chạy phần mềm
-            Application.Run(new FormMain());
+            Application.Run(new FormConnect());
         }
     }
 }
