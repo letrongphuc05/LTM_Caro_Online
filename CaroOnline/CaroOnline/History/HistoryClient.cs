@@ -1,6 +1,4 @@
-﻿
-}
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace CaroOnline.History
@@ -36,8 +34,13 @@ namespace CaroOnline.History
         {
             foreach (GameHistoryInfo history in histories)
             {
-                if (history.GameId == gameId)
+                if (string.Equals(
+                    history.GameId,
+                    gameId,
+                    StringComparison.OrdinalIgnoreCase))
+                {
                     return history;
+                }
             }
 
             return null;
@@ -56,14 +59,12 @@ namespace CaroOnline.History
                     string.Equals(
                         history.PlayerX,
                         playerName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
+                        StringComparison.OrdinalIgnoreCase)
                     ||
                     string.Equals(
                         history.PlayerO,
                         playerName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
+                        StringComparison.OrdinalIgnoreCase)
                 )
                 {
                     result.Add(history);
@@ -86,12 +87,25 @@ namespace CaroOnline.History
 
             string command = parts[0];
 
-            if (command == "HISTORY")
+            switch (command)
             {
-                ParseHistory(parts);
+                case "HISTORY":
+                    ParseHistory(parts);
+                    break;
+
+                case "HISTORY_EMPTY":
+                    ClearHistory();
+                    break;
+
+                case "HISTORY_ERROR":
+                    Console.WriteLine(
+                        $"History error: {string.Join("|", parts)}"
+                    );
+                    break;
             }
         }
 
+        // Phan tich message HISTORY
         private void ParseHistory(string[] parts)
         {
             if (parts.Length < 7)
@@ -108,7 +122,9 @@ namespace CaroOnline.History
 
             DateTime startTime;
 
-            if (DateTime.TryParse(parts[6], out startTime))
+            if (DateTime.TryParse(
+                parts[6],
+                out startTime))
             {
                 history.StartTime = startTime;
             }
@@ -117,7 +133,9 @@ namespace CaroOnline.History
             {
                 DateTime endTime;
 
-                if (DateTime.TryParse(parts[7], out endTime))
+                if (DateTime.TryParse(
+                    parts[7],
+                    out endTime))
                 {
                     history.EndTime = endTime;
                 }

@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="../CaroOnline.Server/CaroOnline.Server/CaroOnline.Server.csproj" />
-  <Project Path="CaroOnline/CaroOnline.csproj" />
-  <Project Path="CaroServerAdmin/CaroServerAdmin.csproj" />
-</Solution>
