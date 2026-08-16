@@ -2,7 +2,7 @@
 
 namespace CaroOnline.Server.Network
 {
-    internal class ClientConnection
+    public class ClientConnection
     {
         // Lưu kết nối TCP của một Client
         private readonly TcpClient _client;
