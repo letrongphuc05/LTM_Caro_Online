@@ -14,6 +14,10 @@ namespace CaroOnline.Server.Network
 
         public int TotalConnections { get; private set; }
 
+        public event Action<string>? ClientConnected;
+
+        public event Action<string>? ClientDisconnected;
+
         public ServerController()
         {
             IsRunning = false;
@@ -34,24 +38,37 @@ namespace CaroOnline.Server.Network
 
             IsRunning = true;
 
-            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource =
+                new CancellationTokenSource();
 
-            _ = AcceptClientsAsync(_cancellationTokenSource.Token);
+            _ = AcceptClientsAsync(
+                _cancellationTokenSource.Token);
         }
-        private async Task AcceptClientsAsync(CancellationToken token)
+
+        private async Task AcceptClientsAsync(
+            CancellationToken token)
         {
-            while (IsRunning && !token.IsCancellationRequested)
+            while (IsRunning &&
+                   !token.IsCancellationRequested)
             {
                 try
                 {
                     if (_listener == null)
                         break;
-
+                   //Client kết nối -> Server lấy địa chỉ IP:Port -> ClientConnected được phát -> Dashboard nhận event -> Dashboard ghi log
                     TcpClient client =
                         await _listener.AcceptTcpClientAsync(token);
 
                     ClientCount++;
                     TotalConnections++;
+
+                    string clientAddress =
+                        client.Client.RemoteEndPoint?.ToString()
+                        ?? "Unknown";
+
+                    ClientConnected?.Invoke(clientAddress);
+
+                    _ = MonitorClientAsync(client, token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -64,6 +81,52 @@ namespace CaroOnline.Server.Network
             }
         }
 
+        private async Task MonitorClientAsync(
+            TcpClient client,
+            CancellationToken token)
+        {
+            string clientAddress =
+               client.Client.RemoteEndPoint?.ToString()
+                 ?? "Unknown";
+            try
+            {
+                while (IsRunning &&
+                       !token.IsCancellationRequested)
+                {
+                    bool disconnected =
+                        client.Client.Poll(
+                            1000,
+                            SelectMode.SelectRead)
+                        &&
+                        client.Client.Available == 0;
+
+                    if (disconnected)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(500, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Server dang Stop
+            }
+            catch (SocketException)
+            {
+                // Client bi mat ket noi
+            }
+            finally
+            {
+                client.Close();
+
+                if (IsRunning && ClientCount > 0)
+                {
+                    ClientCount--;
+                    ClientDisconnected?.Invoke(clientAddress);
+                }
+            }
+        }
         public void Stop()
         {
             if (!IsRunning)
