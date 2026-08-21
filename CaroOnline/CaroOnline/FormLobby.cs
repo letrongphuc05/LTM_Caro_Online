@@ -1,130 +1,148 @@
 ﻿using System;
-using System.Data;
+using System.Collections.Generic;
 using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
-using CaroOnline.Network;
 
 namespace CaroOnline
 {
     public partial class FormLobby : Form
     {
-        public FormLobby()
+        // 1. Biến Mạng và Text
+        private string targetIP;
+        private int targetPort;
+        private System.Windows.Forms.Timer textTimer;
+        private int dotCount = 0;
+
+        // 2. Biến Hiệu ứng Hạt (X, O)
+        private System.Windows.Forms.Timer animTimer;
+        private List<SymbolParticle> particles;
+        private Random rand = new Random();
+
+        // Cấu trúc của 1 hạt X/O
+        class SymbolParticle
+        {
+            public float X, Y, SpeedY;
+            public string Text;
+            public Font Font;
+            public Color Color;
+        }
+
+        // HÀM KHỞI TẠO
+        public FormLobby(string ip, int port)
         {
             InitializeComponent();
+            targetIP = ip;
+            targetPort = port;
 
-            // Đăng ký nhận sự kiện
-            NetworkManager.Instance.OnUpdateOnlineList += UpdateOnlineList;
-            NetworkManager.Instance.OnReceiveChallenge += HandleIncomingChallenge;
-            NetworkManager.Instance.OnUpdateRoomList += UpdateMatchRooms;
+            // Bật DoubleBuffer chống giật nháy khi vẽ hạt
+            this.DoubleBuffered = true;
+
+            // Gọi hàm tạo hạt X O
+            InitBackgroundAnimation();
+
+            // Đăng ký sự kiện khi Form vừa hiện lên
+            this.Load += FormLobby_Load;
         }
 
-        private void UpdateOnlineList(string[] players)
+        // SỰ KIỆN KHI FORM MỞ LÊN (Load)
+        private async void FormLobby_Load(object sender, EventArgs e)
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(() => UpdateOnlineList(players)));
-                return;
-            }
-            lstOnlinePlayers.Items.Clear();
-            lstOnlinePlayers.Items.AddRange(players);
-        }
+            this.Text = "Phòng Ghép Trận | Le Doan Dat - 038206000230";
 
-        private void btnSendChallenge_Click(object sender, EventArgs e)
-        {
-            if (lstOnlinePlayers.SelectedItem != null)
+            // Hiệu ứng chữ nhấp nháy
+            textTimer = new System.Windows.Forms.Timer { Interval = 500 };
+            textTimer.Tick += (s, args) =>
             {
-                string targetPlayer = lstOnlinePlayers.SelectedItem.ToString();
-                NetworkManager.Instance.SendChallenge(targetPlayer);
-                MessageBox.Show($"Đã gửi lời mời thách đấu tới {targetPlayer}.", "Thông báo");
-            }
-            else
-            {
-                MessageBox.Show("Hãy chọn một người chơi!", "Nhắc nhở");
-            }
-        }
+                dotCount = (dotCount + 1) % 4;
+                lblStatus.Text = "Đang tìm kiếm đối thủ" + new string('.', dotCount);
+            };
+            textTimer.Start();
 
-        private void HandleIncomingChallenge(string challengerName)
-        {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(() => HandleIncomingChallenge(challengerName)));
-                return;
-            }
+            // Khởi tạo mạng
+            FormMain gameBoard = new FormMain();
+            CaroOnline.Network.SocketManager socket = new CaroOnline.Network.SocketManager(gameBoard);
 
-            DialogResult response = MessageBox.Show(
-                $"{challengerName} muốn thách đấu với bạn. Bạn đồng ý không?",
-                "Lời mời", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (response == DialogResult.Yes)
+            try
             {
-                NetworkManager.Instance.AcceptChallenge(challengerName);
-                FormMain board = new FormMain();
+                // Chạy lệnh kết nối mạng ngầm (Task.Run) để không làm đơ hạt X O bay
+                await System.Threading.Tasks.Task.Run(() =>
+                {
+                    socket.Connect(targetIP, targetPort);
+                });
+
+                // Tới đây là đã kết nối thành công, chuyển sang bàn cờ
+                textTimer.Stop();
                 this.Hide();
-                board.ShowDialog();
-                this.Show();
+                gameBoard.ShowDialog();
+                this.Close();
             }
-            else
+            catch (Exception ex)
             {
-                NetworkManager.Instance.DeclineChallenge(challengerName);
+                textTimer.Stop();
+                lblStatus.Text = "Lỗi mạng!";
+                MessageBox.Show("Không thể kết nối đến mạng: " + ex.Message);
+                this.Close(); // Đóng sảnh để quay lại Form Khởi động
             }
         }
 
-        private void UpdateMatchRooms(string[] ongoingMatches)
+        // --- CÁC HÀM XỬ LÝ HIỆU ỨNG HẠT X, O BAY TRÊN NỀN ---
+        private void InitBackgroundAnimation()
         {
-            if (this.InvokeRequired)
+            particles = new List<SymbolParticle>();
+            // Tạo 15 ký tự bay ngẫu nhiên
+            for (int i = 0; i < 15; i++)
             {
-                this.Invoke(new Action(() => UpdateMatchRooms(ongoingMatches)));
-                return;
+                particles.Add(CreateRandomParticle());
             }
-            lstMatchRooms.Items.Clear();
-            lstMatchRooms.Items.AddRange(ongoingMatches);
+
+            animTimer = new System.Windows.Forms.Timer { Interval = 40 }; // ~25 fps
+            animTimer.Tick += AnimTimer_Tick;
+            animTimer.Start();
         }
 
-        private void btnWatchMatch_Click(object sender, EventArgs e)
+        private SymbolParticle CreateRandomParticle()
         {
-            if (lstMatchRooms.SelectedItem != null)
+            bool isX = rand.Next(2) == 0;
+            return new SymbolParticle
             {
-                string matchId = lstMatchRooms.SelectedItem.ToString();
-                NetworkManager.Instance.JoinRoomAsSpectator(matchId);
+                X = rand.Next(0, this.ClientSize.Width),
+                Y = rand.Next(-100, this.ClientSize.Height),
+                SpeedY = (float)(rand.NextDouble() * 1.5 + 0.5), // Rơi chậm rãi
+                Text = isX ? "X" : "O",
+                Font = new Font("Comic Sans MS", rand.Next(15, 30), FontStyle.Bold),
+                // X (Đỏ nhạt), O (Xanh nhạt) với độ mờ 60 để làm nền chìm
+                Color = isX ? Color.FromArgb(60, 255, 50, 50) : Color.FromArgb(60, 50, 50, 255)
+            };
+        }
 
-
-                FormMain watchBoard = new FormMain();
-
-
-                watchBoard.Tag = "Spectator";
-
-                this.Hide();
-                watchBoard.ShowDialog();
-                this.Show();
-                this.Hide();
-                watchBoard.ShowDialog();
-                this.Show();
-            }
-            else
+        private void AnimTimer_Tick(object sender, EventArgs e)
+        {
+            foreach (var p in particles)
             {
-                MessageBox.Show("Chọn một trận đấu để xem!", "Nhắc nhở");
+                p.Y -= p.SpeedY; // Bay từ dưới lên trên
+                // Nếu bay khuất khỏi trên thì rớt lại từ dưới đáy
+                if (p.Y + 50 < 0)
+                {
+                    p.Y = this.ClientSize.Height;
+                    p.X = rand.Next(0, this.ClientSize.Width);
+                }
             }
-        }
-        private void button1_Click(object sender, EventArgs e)
-        {
-
+            this.Invalidate(); // Yêu cầu Form vẽ lại màn hình
         }
 
-        private void lstOnlinePlayers_SelectedIndexChanged(object sender, EventArgs e)
+        // Bắt sự kiện vẽ của Form để in các chữ X O ra
+        protected override void OnPaint(PaintEventArgs e)
         {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; // Chống răng cưa
 
-        }
-
-        private void label2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void btnWatchMatch_Click_1(object sender, EventArgs e)
-        {
-
+            foreach (var p in particles)
+            {
+                using (SolidBrush brush = new SolidBrush(p.Color))
+                {
+                    e.Graphics.DrawString(p.Text, p.Font, brush, p.X, p.Y);
+                }
+            }
         }
     }
-
 }
