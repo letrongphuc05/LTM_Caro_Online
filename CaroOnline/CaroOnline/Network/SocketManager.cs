@@ -17,6 +17,7 @@ namespace CaroOnline.Network
         public Action<string[]>? UpdateOnlineList;
         public Action<string[]>? UpdateMatchRooms;
         public Action<string>? OnReceiveChallenge;
+        public Action<string>? OnReceiveHistory;
         public Action<string[]>? OnUpdateOnlineList;
         public Action<string[]>? OnUpdateRoomList;
         public SocketManager()
@@ -201,6 +202,10 @@ namespace CaroOnline.Network
 
                     // GHI LẠI MỌI THÔNG ĐIỆP NHẬN TỪ SERVER VÀO FILE LOG
                     WriteLog($"Nhận từ Server: {data}");
+                    if (data.StartsWith("HISTORY"))
+                    {
+                        OnReceiveHistory?.Invoke(data);
+                    }
 
                     if (data.StartsWith("MOVE"))
                     {
