@@ -33,6 +33,7 @@ namespace CaroOnline
                 string ip = txtIP.Text.Trim();
                 int port = int.Parse(txtPort.Text.Trim());
 
+
                 // 2. Khởi tạo Sảnh chờ (Phòng ghép trận) và truyền IP, Port sang cho nó
                 FormLobby lobby = new FormLobby(ip, port);
 
