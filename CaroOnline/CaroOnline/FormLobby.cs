@@ -24,8 +24,20 @@ namespace CaroOnline
                 this.Invoke(new Action(() => UpdateOnlineList(players)));
                 return;
             }
+
             lstOnlinePlayers.Items.Clear();
+<<<<<<< Updated upstream
             lstOnlinePlayers.Items.AddRange(players);
+=======
+
+            foreach (string player in players)
+            {
+                if (!string.IsNullOrWhiteSpace(player))
+                {
+                    lstOnlinePlayers.Items.Add(player);
+                }
+            }
+>>>>>>> Stashed changes
         }
 
         private void btnSendChallenge_Click(object sender, EventArgs e)
@@ -46,7 +58,11 @@ namespace CaroOnline
         {
             if (this.InvokeRequired)
             {
+<<<<<<< Updated upstream
                 this.Invoke(new Action(() => HandleIncomingChallenge(challengerName)));
+=======
+                this.BeginInvoke(new Action(() => HandleIncomingChallenge(challengerName)));
+>>>>>>> Stashed changes
                 return;
             }
 
@@ -68,6 +84,24 @@ namespace CaroOnline
             }
         }
 
+<<<<<<< Updated upstream
+=======
+        private void HandleMatchStart(string roomId, string opponent, int role)
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => HandleMatchStart(roomId, opponent, role)));
+                return;
+            }
+
+            bool isPlayer1 = (role == 1);
+            FormMain board = new FormMain(isPlayer1, opponent);
+            this.Hide();
+            board.ShowDialog();
+            this.Show();
+        }
+
+>>>>>>> Stashed changes
         private void UpdateMatchRooms(string[] ongoingMatches)
         {
             if (this.InvokeRequired)
@@ -76,7 +110,14 @@ namespace CaroOnline
                 return;
             }
             lstMatchRooms.Items.Clear();
-            lstMatchRooms.Items.AddRange(ongoingMatches);
+
+            foreach (string match in ongoingMatches)
+            {
+                if (!string.IsNullOrWhiteSpace(match))
+                {
+                    lstMatchRooms.Items.Add(match);
+                }
+            }
         }
 
         private void btnWatchMatch_Click(object sender, EventArgs e)
