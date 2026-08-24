@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using CaroOnline.Server.Network;
 using CaroOnline.Server.Rooms;
+using CaroOnline.Server.History;
 
 namespace CaroOnline.Server
 {
@@ -13,7 +14,7 @@ namespace CaroOnline.Server
     {
         static void Main(string[] args)
         {
-            const int port = 5000;
+            const int port = 8080;
 
             // Tạo TCP Server và lắng nghe trên tất cả địa chỉ mạng của máy
             TcpListener server = new TcpListener(IPAddress.Any, port);
@@ -129,11 +130,30 @@ namespace CaroOnline.Server
                 case "MOVE":
                     HandleMove(connection, parts, stream);
                     break;
+                case "HISTORY_ALL":
+                case "HISTORY_GAME":
+                case "HISTORY_PLAYER":
+                case "HISTORY_ROOM":
+                    HandleHistory(connection, message, stream);
+                    break;
 
                 default:
                     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Unknown command: {command}");
                     break;
             }
+        }
+        static void HandleHistory(ClientConnection connection, string message, NetworkStream stream)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] History request: {message}");
+
+            HistoryMessageHandler handler = new HistoryMessageHandler(
+                new HistoryQuery(new HistoryStorage())
+            );
+
+            string response = handler.HandleMessage(message);
+
+            byte[] data = Encoding.UTF8.GetBytes(response);
+            stream.Write(data, 0, data.Length);
         }
 
         static void HandleLogin(ClientConnection connection, string[] parts, NetworkStream stream)
