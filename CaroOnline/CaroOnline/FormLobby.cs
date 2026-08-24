@@ -34,10 +34,15 @@ namespace CaroOnline
                 this.Invoke(new Action(() => UpdateOnlineList(players)));
                 return;
             }
+
             lstOnlinePlayers.Items.Clear();
             foreach (string player in players)
             {
-                lstOnlinePlayers.Items.Add(player);
+                // Giữ lại bộ lọc chuỗi rỗng của bạn để tránh lỗi vệt sáng ở sảnh chờ
+                if (!string.IsNullOrWhiteSpace(player))
+                {
+                    lstOnlinePlayers.Items.Add(player);
+                }
             }
         }
 
@@ -111,7 +116,14 @@ namespace CaroOnline
                 return;
             }
             lstMatchRooms.Items.Clear();
-            lstMatchRooms.Items.AddRange(ongoingMatches);
+
+            foreach (string match in ongoingMatches)
+            {
+                if (!string.IsNullOrWhiteSpace(match))
+                {
+                    lstMatchRooms.Items.Add(match);
+                }
+            }
         }
 
         private void btnWatchMatch_Click(object sender, EventArgs e)

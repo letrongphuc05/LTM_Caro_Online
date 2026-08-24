@@ -336,5 +336,24 @@ namespace CaroOnline.Server.Network
             }
             catch { }
         }
+
+        
+        public static void WriteLog(string message) // GHI LOG CHO SERVER
+        {
+            try
+            {
+                string logEntry = $"[{DateTime.Now:dd/MM/yyyy HH:mm:ss}] {message}";
+
+                // 1. In ra màn hình đen (Console) của Server để dễ quan sát
+                Console.WriteLine(logEntry);
+
+                // 2. Ghi lưu vào file server_log.txt
+                File.AppendAllText("server_log.txt", logEntry + Environment.NewLine);
+            }
+            catch
+            {
+                // Bắt lỗi im lặng, tránh làm sập Server nếu file đang bị khóa
+            }
+        }
     }
 }
