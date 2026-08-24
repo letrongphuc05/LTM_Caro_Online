@@ -9,11 +9,13 @@ namespace CaroOnline
 {
     public partial class FormMain : Form
     {
+        private readonly CaroOnline.History.HistoryManagerClient historyManager;
         private BoardManager boardManager;
 
         public FormMain(bool isPlayer1 = true, string opponentName = "Khách")
         {
             InitializeComponent();
+            historyManager = new CaroOnline.History.HistoryManagerClient();
             boardManager = new BoardManager(pnlChessBoard);
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
@@ -67,7 +69,16 @@ namespace CaroOnline
                 SocketManager.Instance.PendingMoveY = -1;
             }
         }
+        // Xem lịch sử
+        private void LoadAllHistory()
+        {
+            historyManager.LoadAllHistory();
+        }
 
+        private void btnHistory_Click(object? sender, EventArgs e)
+        {
+            LoadAllHistory();
+        }
         // GIAO TIẾP GIAO DIỆN 
 
         private void btnConnect_Click(object? sender, EventArgs e) { }
@@ -189,6 +200,7 @@ namespace CaroOnline
             pnlChessBoard = new Panel();
             lblStatus = new Label();
             btnConnect = new Button();
+            btnHistory = new Button();
             txtIP = new TextBox();
             txtPort = new TextBox();
             panel1 = new Panel();
@@ -233,6 +245,20 @@ namespace CaroOnline
             btnConnect.Text = "Kết nối";
             btnConnect.UseVisualStyleBackColor = false;
 
+            btnHistory.BackColor = Color.FromArgb(70, 130, 180);
+            btnHistory.Cursor = Cursors.Hand;
+            btnHistory.FlatAppearance.BorderSize = 0;
+            btnHistory.FlatStyle = FlatStyle.Flat;
+            btnHistory.Font = new Font("Arial", 10F, FontStyle.Bold);
+            btnHistory.ForeColor = Color.White;
+            btnHistory.Location = new Point(10, 285);
+            btnHistory.Name = "btnHistory";
+            btnHistory.Size = new Size(280, 35);
+            btnHistory.TabIndex = 4;
+            btnHistory.Text = "Xem lịch sử";
+            btnHistory.UseVisualStyleBackColor = false;
+            btnHistory.Click += btnHistory_Click;
+
             txtIP.Font = new Font("Arial", 9F);
             txtIP.Location = new Point(10, 75);
             txtIP.Name = "txtIP";
@@ -259,6 +285,7 @@ namespace CaroOnline
             panel1.Controls.Add(lblStatus);
             panel1.Controls.Add(txtIP);
             panel1.Controls.Add(btnConnect);
+            panel1.Controls.Add(btnHistory);
             panel1.Location = new Point(1000, 0);
             panel1.Name = "panel1";
             panel1.Size = new Size(300, 900);
@@ -362,6 +389,7 @@ namespace CaroOnline
         private Panel pnlChessBoard;
         private Label lblStatus;
         private Button btnConnect;
+        private Button btnHistory;
         private TextBox txtIP;
         private Panel panel1;
         private Label label1;

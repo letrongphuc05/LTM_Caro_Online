@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -15,6 +15,7 @@ namespace CaroOnline.Network
         private string logFilePath = "client_log.txt";
 
         public Action<string>? OnReceiveChallenge;
+        public Action<string>? OnReceiveHistory; // Tính năng mới từ nhánh Gia-Huy
         public Action<string[]>? OnUpdateOnlineList;
         public Action<string[]>? OnUpdateRoomList;
         public Action<string, string, int>? OnMatchStart;
@@ -122,9 +123,15 @@ namespace CaroOnline.Network
 
                         if (string.IsNullOrEmpty(data)) continue;
 
+                        // GHI LẠI MỌI THÔNG ĐIỆP NHẬN TỪ SERVER VÀO FILE LOG (Từ nhánh Gia-Huy)
                         WriteLog($"Nhận từ Server: {data}");
 
-                        if (data.StartsWith("MOVE"))
+                        // Tính năng History gộp từ nhánh Gia-Huy
+                        if (data.StartsWith("HISTORY"))
+                        {
+                            OnReceiveHistory?.Invoke(data);
+                        }
+                        else if (data.StartsWith("MOVE"))
                         {
                             string[] parts = data.Split('|');
                             if (parts.Length >= 3 &&
