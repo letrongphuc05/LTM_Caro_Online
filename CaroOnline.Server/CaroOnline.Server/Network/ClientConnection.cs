@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CaroOnline.Server.Rooms;
+using System;
 using System.Net.Sockets;
 using System.Text;
 
@@ -8,6 +9,8 @@ namespace CaroOnline.Server.Network
     {
         // Lưu kết nối TCP của một Client
         private readonly TcpClient _client;
+        private string _username = "";
+        private int _roomId = -1;
 
         public ClientConnection(TcpClient client)
         {
@@ -21,32 +24,26 @@ namespace CaroOnline.Server.Network
         public string Address =>
             _client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
 
-<<<<<<< Updated upstream
-=======
-        // Lấy/Đặt username của player
+        // Lấy/Đặt username của player 
         public string Username
         {
             get => _username;
             set => _username = value;
         }
 
-        // Lấy/Đặt room ID của player
+        // Lấy/Đặt room ID của player 
         public int RoomId
         {
             get => _roomId;
             set => _roomId = value;
         }
 
-
-
-
-
-        public void ReceiveData() //XỬ LÝ NHẬN DỮ LIỆU, CHỐNG CRASH & GHI LOG
+        public void ReceiveData() // XỬ LÝ NHẬN DỮ LIỆU, CHỐNG CRASH & GHI LOG
         {
             NetworkStream stream = _client.GetStream();
             byte[] buffer = new byte[1024];
 
-            try 
+            try
             {
                 // Ghi log: Bắt đầu theo dõi một kết nối mới
                 ServerController.WriteLog($"[New Connection] Client {Address} is ready to transmit data.");
@@ -66,9 +63,7 @@ namespace CaroOnline.Server.Network
                     string data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                     ServerController.WriteLog($"[Server Received from {Address}]: {data}");
 
-
-
-                    //  người phụ trách logic sẽ viết các lệnh if-else  xử lý nước đi (MOVE), vào phòng (ROOM) ở đây
+                    // Người phụ trách logic sẽ viết các lệnh if-else xử lý nước đi (MOVE), vào phòng (ROOM) ở đây
                 }
             }
             catch (Exception ex)
@@ -79,17 +74,27 @@ namespace CaroOnline.Server.Network
             }
             finally
             {
-                // DỌN DẸP BỘ NHỚ: Dù Client thoát an toàn hay bị đứt cáp văng ra,
-                // khối finally luôn chạy để dọn dẹp, đảm bảo Server không bị tràn RAM.
+                // DỌN DẸP BỘ NHỚ: Xử lý khi Client bị ngắt kết nối đột ngột hoặc an toàn
+                if (!string.IsNullOrEmpty(_username))
+                {
+                    PlayerManager.Instance.RemovePlayer(_username);
+                    ServerController.WriteLog($"[Disconnected] Player {_username} has left the network safely.");
+                }
+
+                if (_roomId >= 0)
+                {
+                    GameRoom room = RoomManager.Instance.GetRoom(_roomId);
+                    if (room != null)
+                    {
+                        RoomManager.Instance.RemoveRoom(_roomId);
+                    }
+                }
+
                 ServerController.WriteLog($"[Cleanup] Closing network stream for Client {Address}.");
                 Close();
             }
         }
 
-
-
-
->>>>>>> Stashed changes
         // Đóng kết nối với Client
         public void Close()
         {

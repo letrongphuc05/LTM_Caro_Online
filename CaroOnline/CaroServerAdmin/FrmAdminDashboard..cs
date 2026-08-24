@@ -17,6 +17,11 @@ namespace CaroServerAdmin
 
             _serverController = new ServerController();
 
+            _serverController.ClientConnected +=
+                ServerController_ClientConnected;
+
+            _serverController.ClientDisconnected +=
+                ServerController_ClientDisconnected;
             AddLog("Admin Dashboard initialized.");
         }
         private void AddLog(string message)
@@ -29,6 +34,36 @@ namespace CaroServerAdmin
             {
                 lstServerLog.TopIndex = lstServerLog.Items.Count - 1;
             }
+        }
+
+        private void ServerController_ClientConnected(
+             string clientAddress)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() =>
+                    ServerController_ClientConnected(
+                        clientAddress));
+
+                return;
+            }
+
+            AddLog($"Client connected: {clientAddress}");
+        }
+
+        private void ServerController_ClientDisconnected(
+            string clientAddress)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() =>
+                    ServerController_ClientDisconnected(
+                        clientAddress));
+
+                return;
+            }
+
+            AddLog($"Client disconnected: {clientAddress}");
         }
 
         private void groupBox1_Enter(object sender, EventArgs e)
@@ -107,6 +142,11 @@ namespace CaroServerAdmin
         {
             try
             {
+                if (_testClient != null)
+                {
+                    _testClient.Close();
+                    _testClient = null;
+                }
                 _serverController.Stop();
 
                 lblServerStatus.Text = "STOPPED";
@@ -114,6 +154,12 @@ namespace CaroServerAdmin
 
                 btnStartServer.Enabled = true;
                 btnStopServer.Enabled = false;
+
+                btnConnectTestClient.Enabled = true;
+                btnDisconnectTestClient.Enabled = false;
+
+                lblTestClientStatus.Text = "DISCONNECTED";
+                lblTestClientStatus.ForeColor = Color.Red;
 
                 txtIP.Enabled = true;
                 txtPort.Enabled = true;
@@ -165,6 +211,9 @@ namespace CaroServerAdmin
 
                 btnConnectTestClient.Enabled = false;
                 btnDisconnectTestClient.Enabled = true;
+                //Nối trạng thái này với code CONNECT
+                lblTestClientStatus.Text = "CONNECTED";
+                lblTestClientStatus.ForeColor = Color.Green;
 
                 AddLog("Test Client connected.");
             }
@@ -192,6 +241,9 @@ namespace CaroServerAdmin
 
                 btnConnectTestClient.Enabled = true;
                 btnDisconnectTestClient.Enabled = false;
+                //Nối trạng thái với DISCONNECT
+                lblTestClientStatus.Text = "DISCONNECTED";
+                lblTestClientStatus.ForeColor = Color.Red;
 
                 AddLog("Test Client disconnected.");
             }
@@ -200,5 +252,18 @@ namespace CaroServerAdmin
                 AddLog("TEST DISCONNECT ERROR: " + ex.Message);
             }
         }
+
+        private void FrmAdminDashboard_Load(object sender, EventArgs e)
+        {
+            lblServerStatus.Text = "STOPPED";
+            lblServerStatus.ForeColor = Color.Red;
+        }
+
+        private void btnClearLog_Click(object sender, EventArgs e)
+        {
+            lstServerLog.Items.Clear();
+            AddLog("Log cleared.");
+        }
+
     }
 }
