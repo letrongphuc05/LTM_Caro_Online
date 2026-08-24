@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Threading;
 using CaroOnline.Logic;
-using CaroOnline.Network; 
+using CaroOnline.Network;
 
 namespace CaroOnline
 {
@@ -11,9 +11,8 @@ namespace CaroOnline
     {
         private readonly CaroOnline.History.HistoryManagerClient historyManager;
         private BoardManager boardManager;
-        private SocketManager socketManager; 
 
-        public FormMain()
+        public FormMain(bool isPlayer1 = true, string opponentName = "Khách")
         {
             InitializeComponent();
             historyManager = new CaroOnline.History.HistoryManagerClient();
@@ -21,9 +20,30 @@ namespace CaroOnline
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
             boardManager.DrawChessBoard();
-            socketManager = new SocketManager(this);
 
-            UpdateStatus("Sẵn sàng.");
+            // [NOTE QUAN TRỌNG - LẮNG NGHE SỰ KIỆN]:
+            // Đăng ký nhận tín hiệu từ mạng thay vì dùng biến tĩnh
+            SocketManager.Instance.OnReceiveMove += Network_OnReceiveMove;
+            SocketManager.Instance.OnOpponentDisconnected += Network_OnOpponentDisconnected;
+            SocketManager.Instance.OnConnectionChanged += Network_OnConnectionChanged;
+
+            txtIP.Enabled = false;
+            txtPort.Enabled = false;
+            btnConnect.Enabled = false;
+            btnConnect.Text = "Đang trong trận...";
+
+            // [NOTE QUAN TRỌNG - FIX ĐỒNG BỘ LƯỢT VÀ KÝ HIỆU]:
+            boardManager.IsMyTurn = isPlayer1;
+            boardManager.MySymbol = isPlayer1 ? "X" : "O";
+
+            if (isPlayer1)
+            {
+                UpdateStatus($"Bạn đi trước (X). Đối thủ: {opponentName}");
+            }
+            else
+            {
+                UpdateStatus($"Bạn đi sau (O). Chờ {opponentName} đánh...");
+            }
 
             this.AutoSize = false;
             this.AutoSizeMode = AutoSizeMode.GrowOnly;
@@ -32,6 +52,22 @@ namespace CaroOnline
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(240, 240, 245);
             SetupSkinSelectorUI();
+
+            // Đăng ký sự kiện Load để quét các nước cờ bị kẹt
+            this.Load += FormMain_Load;
+        }
+
+        private void FormMain_Load(object? sender, EventArgs e)
+        {
+            // [NOTE QUAN TRỌNG - FIX RACE CONDITION]:
+            // Nếu mạng nhận được nước đi quá nhanh lúc Form chưa vẽ xong, SocketManager sẽ lưu tạm.
+            // Khi Form Load xong, ta lấy nước đi đó ra thực thi.
+            if (SocketManager.Instance.PendingMoveX >= 0 && SocketManager.Instance.PendingMoveY >= 0)
+            {
+                Network_OnReceiveMove(SocketManager.Instance.PendingMoveX, SocketManager.Instance.PendingMoveY);
+                SocketManager.Instance.PendingMoveX = -1;
+                SocketManager.Instance.PendingMoveY = -1;
+            }
         }
         // Xem lịch sử
         private void LoadAllHistory()
@@ -45,30 +81,13 @@ namespace CaroOnline
         }
         // GIAO TIẾP GIAO DIỆN 
 
-        private void btnConnect_Click(object? sender, EventArgs e)
-        {
-            string ip = txtIP.Text.Trim();
-            if (!int.TryParse(txtPort.Text.Trim(), out int port))
-            {
-                MessageBox.Show("Port không hợp lệ!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            UpdateStatus("Đang kết nối...");
-            btnConnect.Enabled = false;
-            Thread connectThread = new Thread(() =>
-            {
-                socketManager.Connect(ip, port);
-            });
-            connectThread.IsBackground = true;
-            connectThread.Start();
-        }
+        private void btnConnect_Click(object? sender, EventArgs e) { }
 
         private void BoardManager_PlayerMarked(object? sender, Point point)
         {
             UpdateStatus("Đối thủ đang suy nghĩ...");
             string payload = $"MOVE|{point.X}|{point.Y}";
-            socketManager.Send(payload);
+            SocketManager.Instance.Send(payload);
         }
 
         private void BoardManager_GameEnded(object? sender, string result)
@@ -86,7 +105,11 @@ namespace CaroOnline
 
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            socketManager?.Disconnect();
+            // [NOTE QUAN TRỌNG - CHỐNG TRÀN BỘ NHỚ]:
+            // Phải hủy đăng ký sự kiện khi Form đóng để tránh lỗi nhân đôi nước cờ ở các trận sau
+            SocketManager.Instance.OnReceiveMove -= Network_OnReceiveMove;
+            SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
+            SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
         }
 
         public void Network_OnConnectionChanged(bool isConnected, string message)
@@ -96,15 +119,7 @@ namespace CaroOnline
                 this.Invoke(new Action(() => Network_OnConnectionChanged(isConnected, message)));
                 return;
             }
-
             UpdateStatus(message);
-            btnConnect.Enabled = !isConnected;
-
-            if (isConnected)
-            {
-                boardManager.IsMyTurn = true;
-                UpdateStatus(boardManager.IsMyTurn ? "Tới lượt bạn đánh" : "Chờ đối thủ đánh");
-            }
         }
 
         public void Network_OnReceiveMove(int x, int y)
@@ -116,6 +131,8 @@ namespace CaroOnline
             }
 
             boardManager.ReceiveOpponentMove(x, y);
+            boardManager.IsMyTurn = true;
+            pnlChessBoard.Invalidate();
             UpdateStatus("Đến lượt bạn.");
         }
 
@@ -128,9 +145,8 @@ namespace CaroOnline
             }
 
             boardManager.IsMyTurn = false;
-            MessageBox.Show("Đối thủ đã ngắt kết nối đột ngột!", "Sự cố mạng", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            UpdateStatus("Mất kết nối.");
-            btnConnect.Enabled = true;
+            MessageBox.Show("Đối thủ đã ngắt kết nối hoặc thoát phòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            UpdateStatus("Đối thủ đã thoát.");
         }
 
         private void UpdateStatus(string statusMessage)
@@ -144,7 +160,6 @@ namespace CaroOnline
                 lblStatus.Text = statusMessage;
             }
         }
-
 
         // UI CHỌN màu 
 
@@ -229,7 +244,6 @@ namespace CaroOnline
             btnConnect.TabIndex = 3;
             btnConnect.Text = "Kết nối";
             btnConnect.UseVisualStyleBackColor = false;
-            btnConnect.Click += btnConnect_Click;
 
             btnHistory.BackColor = Color.FromArgb(70, 130, 180);
             btnHistory.Cursor = Cursors.Hand;
@@ -357,7 +371,6 @@ namespace CaroOnline
 
         private void panel1_Paint(object sender, PaintEventArgs e)
         {
-            // Draw gradient background
             using (Brush brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                 panel1.ClientRectangle,
                 Color.FromArgb(248, 248, 255),
