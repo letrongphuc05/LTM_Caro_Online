@@ -14,7 +14,11 @@ namespace CaroOnline.Logic
         private int currentButtonHeight = 40;
 
         public bool IsMyTurn { get; set; } = false;
+
+        // [NOTE QUAN TRỌNG - LOGIC GAME]: 
+        // Giá trị này sẽ được FormMain gán lại động thành "X" hoặc "O" tùy vào phân quyền của Server.
         public string MySymbol { get; set; } = "X";
+
         public event EventHandler<Point>? PlayerMarked;
         public event EventHandler<string>? GameEnded;
 
