@@ -31,9 +31,9 @@
             components = new System.ComponentModel.Container();
             grpServerConfig = new GroupBox();
             grpTestTools = new GroupBox();
-            btnDisconnectTestClient = new Button();
-            btnConnectTestClient = new Button();
             grpStatistics = new GroupBox();
+            lblActiveRooms = new Label();
+            lblActiveRoomsTitle = new Label();
             lblTotalConnections = new Label();
             lblTotalTitle = new Label();
             lblClientsOnline = new Label();
@@ -46,16 +46,15 @@
             lblPort = new Label();
             txtIP = new TextBox();
             lblIP = new Label();
+            lblTestClientStatus = new Label();
+            lblTestClientTitle = new Label();
+            btnDisconnectTestClient = new Button();
+            btnConnectTestClient = new Button();
             grpServerLog = new GroupBox();
             btnClearLog = new Button();
             lstServerLog = new ListBox();
             timerStatistics = new System.Windows.Forms.Timer(components);
-            lblActiveRoomsTitle = new Label();
-            lblActiveRooms = new Label();
-            lblTestClientTitle = new Label();
-            lblTestClientStatus = new Label();
             grpServerConfig.SuspendLayout();
-            grpTestTools.SuspendLayout();
             grpStatistics.SuspendLayout();
             grpServerLog.SuspendLayout();
             SuspendLayout();
@@ -81,38 +80,18 @@
             grpServerConfig.Enter += groupBox1_Enter;
             // 
             // grpTestTools
-            // 
+            //
             grpTestTools.Controls.Add(lblTestClientStatus);
             grpTestTools.Controls.Add(lblTestClientTitle);
             grpTestTools.Controls.Add(btnDisconnectTestClient);
             grpTestTools.Controls.Add(btnConnectTestClient);
-            grpTestTools.Location = new Point(485, 251);
+
+            grpTestTools.Location = new Point(485, 225);
             grpTestTools.Name = "grpTestTools";
-            grpTestTools.Size = new Size(400, 152);
-            grpTestTools.TabIndex = 9;
+            grpTestTools.Size = new Size(400, 199);
+            grpTestTools.TabIndex = 0;
             grpTestTools.TabStop = false;
             grpTestTools.Text = "Test Tools";
-            // 
-            // btnDisconnectTestClient
-            // 
-            btnDisconnectTestClient.Enabled = false;
-            btnDisconnectTestClient.Location = new Point(181, 42);
-            btnDisconnectTestClient.Name = "btnDisconnectTestClient";
-            btnDisconnectTestClient.Size = new Size(94, 29);
-            btnDisconnectTestClient.TabIndex = 1;
-            btnDisconnectTestClient.Text = "DISCONNECT TEST CLIENT";
-            btnDisconnectTestClient.UseVisualStyleBackColor = true;
-            btnDisconnectTestClient.Click += btnDisconnectTestClient_Click;
-            // 
-            // btnConnectTestClient
-            // 
-            btnConnectTestClient.Location = new Point(26, 42);
-            btnConnectTestClient.Name = "btnConnectTestClient";
-            btnConnectTestClient.Size = new Size(94, 29);
-            btnConnectTestClient.TabIndex = 0;
-            btnConnectTestClient.Text = "CONNECT TEST CLIENT";
-            btnConnectTestClient.UseVisualStyleBackColor = true;
-            btnConnectTestClient.Click += btnConnectTestClient_Click;
             // 
             // grpStatistics
             // 
@@ -128,6 +107,24 @@
             grpStatistics.TabIndex = 8;
             grpStatistics.TabStop = false;
             grpStatistics.Text = "Connection Statistics";
+            // 
+            // lblActiveRooms
+            // 
+            lblActiveRooms.AutoSize = true;
+            lblActiveRooms.Location = new Point(181, 113);
+            lblActiveRooms.Name = "lblActiveRooms";
+            lblActiveRooms.Size = new Size(17, 20);
+            lblActiveRooms.TabIndex = 5;
+            lblActiveRooms.Text = "0";
+            // 
+            // lblActiveRoomsTitle
+            // 
+            lblActiveRoomsTitle.AutoSize = true;
+            lblActiveRoomsTitle.Location = new Point(26, 113);
+            lblActiveRoomsTitle.Name = "lblActiveRoomsTitle";
+            lblActiveRoomsTitle.Size = new Size(103, 20);
+            lblActiveRoomsTitle.TabIndex = 4;
+            lblActiveRoomsTitle.Text = "Active Rooms:";
             // 
             // lblTotalConnections
             // 
@@ -239,6 +236,46 @@
             lblIP.TabIndex = 0;
             lblIP.Text = "IP Address:";
             // 
+            // lblTestClientStatus
+            // 
+            lblTestClientStatus.AutoSize = true;
+            lblTestClientStatus.ForeColor = Color.Red;
+            lblTestClientStatus.Location = new Point(181, 103);
+            lblTestClientStatus.Name = "lblTestClientStatus";
+            lblTestClientStatus.Size = new Size(118, 20);
+            lblTestClientStatus.TabIndex = 11;
+            lblTestClientStatus.Text = "DISCONNECTED";
+            // 
+            // lblTestClientTitle
+            // 
+            lblTestClientTitle.AutoSize = true;
+            lblTestClientTitle.Location = new Point(26, 103);
+            lblTestClientTitle.Name = "lblTestClientTitle";
+            lblTestClientTitle.Size = new Size(80, 20);
+            lblTestClientTitle.TabIndex = 10;
+            lblTestClientTitle.Text = "Test Client:";
+            // 
+            // btnDisconnectTestClient
+            // 
+            btnDisconnectTestClient.Enabled = false;
+            btnDisconnectTestClient.Location = new Point(181, 42);
+            btnDisconnectTestClient.Name = "btnDisconnectTestClient";
+            btnDisconnectTestClient.Size = new Size(94, 29);
+            btnDisconnectTestClient.TabIndex = 1;
+            btnDisconnectTestClient.Text = "DISCONNECT TEST CLIENT";
+            btnDisconnectTestClient.UseVisualStyleBackColor = true;
+            btnDisconnectTestClient.Click += btnDisconnectTestClient_Click;
+            // 
+            // btnConnectTestClient
+            // 
+            btnConnectTestClient.Location = new Point(26, 42);
+            btnConnectTestClient.Name = "btnConnectTestClient";
+            btnConnectTestClient.Size = new Size(94, 29);
+            btnConnectTestClient.TabIndex = 0;
+            btnConnectTestClient.Text = "CONNECT TEST CLIENT";
+            btnConnectTestClient.UseVisualStyleBackColor = true;
+            btnConnectTestClient.Click += btnConnectTestClient_Click;
+            // 
             // grpServerLog
             // 
             grpServerLog.Controls.Add(btnClearLog);
@@ -274,48 +311,11 @@
             timerStatistics.Interval = 500;
             timerStatistics.Tick += timerStatistics_Tick;
             // 
-            // lblActiveRoomsTitle
-            // 
-            lblActiveRoomsTitle.AutoSize = true;
-            lblActiveRoomsTitle.Location = new Point(26, 113);
-            lblActiveRoomsTitle.Name = "lblActiveRoomsTitle";
-            lblActiveRoomsTitle.Size = new Size(103, 20);
-            lblActiveRoomsTitle.TabIndex = 4;
-            lblActiveRoomsTitle.Text = "Active Rooms:";
-            // 
-            // lblActiveRooms
-            // 
-            lblActiveRooms.AutoSize = true;
-            lblActiveRooms.Location = new Point(181, 113);
-            lblActiveRooms.Name = "lblActiveRooms";
-            lblActiveRooms.Size = new Size(17, 20);
-            lblActiveRooms.TabIndex = 5;
-            lblActiveRooms.Text = "0";
-            // 
-            // lblTestClientTitle
-            // 
-            lblTestClientTitle.AutoSize = true;
-            lblTestClientTitle.Location = new Point(26, 103);
-            lblTestClientTitle.Name = "lblTestClientTitle";
-            lblTestClientTitle.Size = new Size(80, 20);
-            lblTestClientTitle.TabIndex = 10;
-            lblTestClientTitle.Text = "Test Client:";
-            // 
-            // lblTestClientStatus
-            // 
-            lblTestClientStatus.AutoSize = true;
-            lblTestClientStatus.ForeColor = Color.Red;
-            lblTestClientStatus.Location = new Point(181, 103);
-            lblTestClientStatus.Name = "lblTestClientStatus";
-            lblTestClientStatus.Size = new Size(118, 20);
-            lblTestClientStatus.TabIndex = 11;
-            lblTestClientStatus.Text = "DISCONNECTED";
-            // 
             // FrmAdminDashboard
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1030, 904);
+            ClientSize = new Size(1353, 864);
             Controls.Add(grpServerLog);
             Controls.Add(grpServerConfig);
             MinimumSize = new Size(900, 600);
@@ -325,8 +325,6 @@
             Load += FrmAdminDashboard_Load;
             grpServerConfig.ResumeLayout(false);
             grpServerConfig.PerformLayout();
-            grpTestTools.ResumeLayout(false);
-            grpTestTools.PerformLayout();
             grpStatistics.ResumeLayout(false);
             grpStatistics.PerformLayout();
             grpServerLog.ResumeLayout(false);
