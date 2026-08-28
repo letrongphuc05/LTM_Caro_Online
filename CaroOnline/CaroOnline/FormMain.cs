@@ -16,6 +16,7 @@ namespace CaroOnline
         {
             InitializeComponent();
             historyManager = new CaroOnline.History.HistoryManagerClient();
+            this.Controls.Add(btnHistory);
             boardManager = new BoardManager(pnlChessBoard);
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
@@ -55,6 +56,19 @@ namespace CaroOnline
 
             // Đăng ký sự kiện Load để quét các nước cờ bị kẹt
             this.Load += FormMain_Load;
+            btnHistory.Text = "Xem lịch sử";
+            btnHistory.Width = 120;
+            btnHistory.Height = 35;
+            btnHistory.Left = 560;
+            btnHistory.Top = 370;
+
+            btnHistory.Click += (sender, e) =>
+            {
+                LoadAllHistory();
+            };
+
+            this.Controls.Add(btnHistory);
+            btnHistory.BringToFront();
         }
 
         private void FormMain_Load(object? sender, EventArgs e)

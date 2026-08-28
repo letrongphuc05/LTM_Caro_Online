@@ -157,7 +157,7 @@ namespace CaroOnline.Network
                             string content = data.Substring("ONLINE".Length).TrimStart('|');
                             string[] players = content.Split('|', StringSplitOptions.RemoveEmptyEntries);
                             LastOnlineList = players;
-                            OnUpdateOnlineList?.Invoke(players);
+                           OnUpdateOnlineList?.Invoke(players);
                         }
                         // phòng đấu
                         else if (data.StartsWith("ROOMS"))

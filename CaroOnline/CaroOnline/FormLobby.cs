@@ -4,14 +4,18 @@ using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
 using CaroOnline.Network;
+using CaroOnline.History;
 
 namespace CaroOnline
 {
     public partial class FormLobby : Form
     {
+        private HistoryManagerClient historyManager;
         public FormLobby()
         {
             InitializeComponent();
+
+            historyManager = new HistoryManagerClient();
 
             lstOnlinePlayers.SelectionMode = SelectionMode.One;
             lstOnlinePlayers.Enabled = true;
@@ -24,26 +28,51 @@ namespace CaroOnline
 
             UpdateOnlineList(SocketManager.Instance.LastOnlineList);
             UpdateMatchRooms(SocketManager.Instance.LastRoomList);
+
+            // NÚT XEM LỊCH SỬ
+            // ==============================
+            Button btnHistory = new Button();
+
+            btnHistory.Text = "Xem lịch sử";
+            btnHistory.Size = new Size(120, 35);
+
+            // Nằm chính giữa, bên dưới 2 nút hiện tại
+            btnHistory.Left = (this.ClientSize.Width - btnHistory.Width) / 2;
+            btnHistory.Top = btnWatchMatch.Bottom + 20;
+
+            this.Controls.Add(btnHistory);
+            btnHistory.BringToFront();
+
+            // Khi bấm nút thì tải lịch sử
+            btnHistory.Click += btnHistory_Click;
         }
 
         private void UpdateOnlineList(string[] players)
         {
-            if (players == null) return;
+            if (players == null)
+                return;
+
             if (this.InvokeRequired)
             {
-                this.Invoke(new Action(() => UpdateOnlineList(players)));
+                this.BeginInvoke(new Action(() =>
+                    UpdateOnlineList(players)));
+
                 return;
             }
 
             lstOnlinePlayers.Items.Clear();
+
             foreach (string player in players)
             {
-                // Giữ lại bộ lọc chuỗi rỗng của bạn để tránh lỗi vệt sáng ở sảnh chờ
                 if (!string.IsNullOrWhiteSpace(player))
                 {
                     lstOnlinePlayers.Items.Add(player);
                 }
             }
+
+            Console.WriteLine(
+                $"[LOBBY] Đã cập nhật {players.Length} người chơi online."
+            );
         }
 
         private void btnSendChallenge_Click(object sender, EventArgs e)
@@ -146,9 +175,53 @@ namespace CaroOnline
             }
         }
 
-        private void button1_Click(object sender, EventArgs e) { }
+        private void button1_Click(object sender, EventArgs e) {
+            // TODO: mở chức năng xem lịch sử
+        }
         private void lstOnlinePlayers_SelectedIndexChanged(object sender, EventArgs e) { }
         private void label2_Click(object sender, EventArgs e) { }
-        private void btnWatchMatch_Click_1(object sender, EventArgs e) { }
-    }
-}
+        private void btnWatchMatch_Click_1(object sender, EventArgs e) {
+        }
+        private async void btnHistory_Click(object sender, EventArgs e)
+        {
+            // Gửi yêu cầu HISTORY_ALL lên Server
+            historyManager.LoadAllHistory();
+
+            // Chờ Server trả dữ liệu về
+            await System.Threading.Tasks.Task.Delay(500);
+
+            var histories = historyManager.GetHistory();
+
+            if (histories == null || histories.Count == 0)
+            {
+                MessageBox.Show(
+                    "Chưa có lịch sử trận đấu.",
+                    "Lịch sử",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                return;
+            }
+
+            StringBuilder result = new StringBuilder();
+
+            foreach (var history in histories)
+            {
+                result.AppendLine($"Game ID: {history.GameId}");
+                result.AppendLine($"Phòng: {history.RoomId}");
+                result.AppendLine($"X: {history.PlayerX}");
+                result.AppendLine($"O: {history.PlayerO}");
+                result.AppendLine($"Người thắng: {history.Winner}");
+                result.AppendLine($"Bắt đầu: {history.StartTime}");
+                result.AppendLine($"Kết thúc: {history.EndTime}");
+                result.AppendLine("--------------------------------");
+            }
+
+            MessageBox.Show(
+                result.ToString(),
+                "Lịch sử trận đấu",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+         }
+     }

@@ -142,6 +142,7 @@ namespace CaroOnline.Server
                     break;
             }
         }
+
         static void HandleHistory(ClientConnection connection, string message, NetworkStream stream)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] History request: {message}");
