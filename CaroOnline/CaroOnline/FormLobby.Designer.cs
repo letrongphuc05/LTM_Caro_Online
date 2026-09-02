@@ -33,26 +33,28 @@
             // 
             // lblStatus
             // 
-            lblStatus.AutoSize = true;
-            lblStatus.Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblStatus.Location = new Point(227, 177);
+            lblStatus.BackColor = Color.Transparent; // Trong suốt để lộ hiệu ứng hạt X O rơi
+            lblStatus.Dock = DockStyle.Fill; // Bám sát toàn bộ màn hình
+            lblStatus.Font = new Font("Segoe UI", 24F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblStatus.ForeColor = Color.Cyan; // Chữ xanh Neon chuẩn phong cách Cyberpunk
+            lblStatus.Location = new Point(0, 0);
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(360, 41);
+            lblStatus.Size = new Size(800, 450);
             lblStatus.TabIndex = 6;
             lblStatus.Text = "Đang tìm kiếm đối thủ...";
+            lblStatus.TextAlign = ContentAlignment.MiddleCenter; // Luôn nằm chính giữa bất kể thu phóng
             // 
             // FormLobby
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.White;
+            BackColor = Color.FromArgb(30, 30, 47); // Nền tối đồng bộ với FormMain
             ClientSize = new Size(800, 450);
             Controls.Add(lblStatus);
-            DoubleBuffered = true;
+            DoubleBuffered = true; // Bật chống giật nháy cho đồ họa
             Name = "FormLobby";
-            Text = "Sảnh chờ";
+            StartPosition = FormStartPosition.CenterScreen; // Hiển thị ngay giữa màn hình
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion
