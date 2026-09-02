@@ -49,18 +49,32 @@ namespace CaroOnline
         {
             this.Text = "Phòng Ghép Trận | Le Doan Dat - 038206000230";
 
-            // Hiệu ứng chữ nhấp nháy
+            // 1. Hiệu ứng Fade-in (Từ trong suốt hiện dần lên)
+            this.Opacity = 0;
+            System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer { Interval = 20 };
+            fadeTimer.Tick += (s, args) => {
+                if (this.Opacity < 1) this.Opacity += 0.05;
+                else fadeTimer.Stop();
+            };
+            fadeTimer.Start();
+
+            // 2. Bắt đầu đếm giờ
+            searchStartTime = DateTime.Now;
+
+            // 3. Hiệu ứng chữ nhấp nháy + Đồng hồ thời gian thực
             textTimer = new System.Windows.Forms.Timer { Interval = 500 };
             textTimer.Tick += (s, args) =>
             {
                 dotCount = (dotCount + 1) % 4;
                 lblStatus.Text = "Đang tìm kiếm đối thủ" + new string('.', dotCount);
+                lblStatus.ForeColor = dotCount % 2 == 0 ? Color.Cyan : Color.DeepSkyBlue;
             };
-            textTimer.Start();
+
+            // ... (ĐOẠN CODE KHỞI TẠO MẠNG VÀ TASK.RUN BÊN DƯỚI BẠN GIỮ NGUYÊN) ...
 
             // Khởi tạo mạng
             FormMain gameBoard = new FormMain();
-            CaroOnline.Network.SocketManager socket = new CaroOnline.Network.SocketManager(gameBoard);
+            CaroOnline.Network.SocketManager socket = new CaroOnline.Network.SocketManager();
 
             try
             {
@@ -98,8 +112,11 @@ namespace CaroOnline
             animTimer = new System.Windows.Forms.Timer { Interval = 40 }; // ~25 fps
             animTimer.Tick += AnimTimer_Tick;
             animTimer.Start();
-        }
 
+        }
+        // ... (các biến cũ)
+        private DateTime searchStartTime;
+        private float radarRadius = 0;
         private SymbolParticle CreateRandomParticle()
         {
             bool isX = rand.Next(2) == 0;
@@ -117,25 +134,45 @@ namespace CaroOnline
 
         private void AnimTimer_Tick(object sender, EventArgs e)
         {
+            // Code bay của X O (giữ nguyên)
             foreach (var p in particles)
             {
-                p.Y -= p.SpeedY; // Bay từ dưới lên trên
-                // Nếu bay khuất khỏi trên thì rớt lại từ dưới đáy
+                p.Y -= p.SpeedY;
                 if (p.Y + 50 < 0)
                 {
                     p.Y = this.ClientSize.Height;
                     p.X = rand.Next(0, this.ClientSize.Width);
                 }
             }
-            this.Invalidate(); // Yêu cầu Form vẽ lại màn hình
+
+            // Thêm code Sóng Radar mở rộng
+            radarRadius += 4;
+            if (radarRadius > 400) radarRadius = 0;
+
+            this.Invalidate();
         }
+
 
         // Bắt sự kiện vẽ của Form để in các chữ X O ra
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; // Chống răng cưa
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
+            // 1. Vẽ vòng sóng Radar tỏa ra từ trung tâm
+            int centerX = this.ClientSize.Width / 2;
+            int centerY = this.ClientSize.Height / 2;
+            int alpha = (int)(255 * (1 - radarRadius / 400f)); // Mờ dần khi to ra
+
+            if (alpha > 0)
+            {
+                using (Pen radarPen = new Pen(Color.FromArgb(alpha, 0, 255, 255), 2))
+                {
+                    e.Graphics.DrawEllipse(radarPen, centerX - radarRadius, centerY - radarRadius, radarRadius * 2, radarRadius * 2);
+                }
+            }
+
+            // 2. Vẽ các hạt X, O bay (Giữ nguyên)
             foreach (var p in particles)
             {
                 using (SolidBrush brush = new SolidBrush(p.Color))
@@ -143,6 +180,29 @@ namespace CaroOnline
                     e.Graphics.DrawString(p.Text, p.Font, brush, p.X, p.Y);
                 }
             }
+            // ... (code vẽ hạt X O giữ nguyên)
+
+            // Vẽ đồng hồ đếm giờ với Font nhỏ (Căn giữa tuyệt đối)
+            TimeSpan elapsed = DateTime.Now - searchStartTime;
+            string timerText = $"⏳ Thời gian tìm: {elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+
+            using (Font timerFont = new Font("Segoe UI", 12, FontStyle.Regular)) // Kích thước chữ 12
+            using (SolidBrush timerBrush = new SolidBrush(Color.White)) // Màu trắng nổi bật trên nền tối
+            {
+                // Đo kích thước chuỗi để tự động căn giữa màn hình
+                SizeF textSize = e.Graphics.MeasureString(timerText, timerFont);
+                float xPos = (this.ClientSize.Width - textSize.Width) / 2;
+
+                // Đặt vị trí Y nằm ngay bên dưới dòng chữ "Đang tìm kiếm..."
+                float yPos = (this.ClientSize.Height / 2) + 40;
+
+                e.Graphics.DrawString(timerText, timerFont, timerBrush, xPos, yPos);
+            }
+
+            // 3. Watermark bản quyền (giữ nguyên code cũ của bạn)
+            // ...
+            
+           
         }
     }
 }
