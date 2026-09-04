@@ -173,6 +173,7 @@ namespace CaroOnline.Server.Network
                 case "ACCEPT": HandleAccept(connection, parts, stream); break;
                 case "DECLINE": HandleDecline(connection, parts, stream); break;
                 case "MOVE": HandleMove(connection, parts, stream); break;
+                case "TESTROOM": HandleTestRoom(connection, stream); break;
                 default: Log($"Unknown command: {command}"); break;
             }
         }
@@ -242,7 +243,37 @@ namespace CaroOnline.Server.Network
                 BroadcastRoomList();
             }
         }
+        private void HandleTestRoom(ClientConnection connection, NetworkStream stream)
+        {
+            if (string.IsNullOrEmpty(connection.Username))
+                return;
 
+            if (connection.RoomId >= 0)
+            {
+                SendMessage(stream, $"ERROR|Bạn đã ở trong phòng {connection.RoomId}");
+                return;
+            }
+
+            ClientConnection testPlayer = new ClientConnection(new TcpClient());
+            testPlayer.Username = "TEST_PLAYER";
+
+            GameRoom? room = RoomManager.Instance.CreateRoom(connection, testPlayer);
+
+            if (room == null)
+            {
+                SendMessage(stream, "ERROR|Không thể tạo phòng");
+                return;
+            }
+
+            Log($"TEST ROOM CREATED: {room.GetRoomName()}");
+
+            SendMessage(
+                stream,
+                $"ROOM|{room.RoomId}|{testPlayer.Username}|1"
+            );
+
+            BroadcastRoomList();
+        }
         private void HandleDecline(ClientConnection connection, string[] parts, NetworkStream stream)
         {
             if (parts.Length < 2) return;
