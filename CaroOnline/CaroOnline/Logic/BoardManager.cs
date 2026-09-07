@@ -13,6 +13,10 @@ namespace CaroOnline.Logic
         private int currentButtonWidth = 40;
         private int currentButtonHeight = 40;
 
+        // Timer 30 giây cho mỗi lượt chơi
+        private System.Windows.Forms.Timer? turnTimer;
+        private int timeRemaining = 30; // 30 giây
+
         public bool IsMyTurn { get; set; } = false;
 
         // [NOTE QUAN TRỌNG - LOGIC GAME]: 
@@ -21,6 +25,8 @@ namespace CaroOnline.Logic
 
         public event EventHandler<Point>? PlayerMarked;
         public event EventHandler<string>? GameEnded;
+        public event EventHandler? TimerExpired;  // Sự kiện khi hết thời gian lượt chơi
+        public event EventHandler<int>? TimerTick;  // Sự kiện mỗi 1 giây để update UI
 
         public BoardManager(Panel panel)
         {
@@ -110,6 +116,7 @@ namespace CaroOnline.Logic
             Button? btn = sender as Button;
             if (btn == null || btn.Text != "") return;
 
+            StopTurnTimer();  // Dừng timer khi người chơi đánh
             Mark(btn, MySymbol);
             IsMyTurn = false;
 
@@ -121,6 +128,7 @@ namespace CaroOnline.Logic
 
             if (CheckWin(btn))
             {
+                StopTurnTimer();
                 GameEnded?.Invoke(this, "YOU_WIN");
             }
         }
@@ -132,6 +140,7 @@ namespace CaroOnline.Logic
 
             Mark(btn, opponentSymbol);
             IsMyTurn = true;
+            StartTurnTimer();  // Khởi động timer khi bắt đầu lượt của tôi
 
             if (CheckWin(btn))
             {
@@ -243,5 +252,49 @@ namespace CaroOnline.Logic
             }
             return countTop + countBottom >= 5;
         }
+
+        // ========== TIMER LOGIC ==========
+        // Bắt đầu bộ đếm thời gian 30 giây cho lượt hiện tại
+        public void StartTurnTimer()
+        {
+            StopTurnTimer();  // Dừng timer cũ nếu có
+
+            turnTimer = new System.Windows.Forms.Timer();
+            turnTimer.Interval = 1000;  // Cập nhật mỗi 1 giây
+            timeRemaining = 30;
+            turnTimer.Tick += TurnTimer_Tick;
+            turnTimer.Start();
+        }
+
+        // Dừng bộ đếm thời gian
+        public void StopTurnTimer()
+        {
+            if (turnTimer != null)
+            {
+                turnTimer.Stop();
+                turnTimer.Dispose();
+                turnTimer = null;
+            }
+        }
+
+        // Sự kiện mỗi 1 giây của timer
+        private void TurnTimer_Tick(object? sender, EventArgs e)
+        {
+            timeRemaining--;
+
+            // Phát event để FormMain update UI
+            TimerTick?.Invoke(this, timeRemaining);
+
+            if (timeRemaining <= 0)
+            {
+                StopTurnTimer();
+                IsMyTurn = false;  // Mất lượt
+                TimerExpired?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        // Lấy thời gian còn lại (để hiển thị trên UI)
+        public int GetTimeRemaining() => Math.Max(0, timeRemaining);
     }
+
 }

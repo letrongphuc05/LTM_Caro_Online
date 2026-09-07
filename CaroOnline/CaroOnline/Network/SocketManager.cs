@@ -26,6 +26,9 @@ namespace CaroOnline.Network
         public Action<int, int>? OnReceiveMove;
         public Action? OnOpponentDisconnected;
         public Action<bool, string>? OnConnectionChanged;
+        public Action? OnRematchRequest;       // Khi nhận REMATCH_REQUEST từ đối thủ
+        public Action? OnRematchAccept;        // Khi đối thủ đồng ý tái đấu
+        public Action? OnRematchDecline;       // Khi đối thủ từ chối tái đấu
 
         public string[] LastOnlineList { get; private set; } = new string[0];
         public string[] LastRoomList { get; private set; } = new string[0];
@@ -182,6 +185,18 @@ namespace CaroOnline.Network
                         {
                             string challenger = data.Substring("CHALLENGE".Length).TrimStart('|');
                             OnReceiveChallenge?.Invoke(challenger);
+                        }
+                        else if (data.StartsWith("REMATCH_REQUEST"))
+                        {
+                            OnRematchRequest?.Invoke();
+                        }
+                        else if (data.StartsWith("REMATCH_ACCEPT"))
+                        {
+                            OnRematchAccept?.Invoke();
+                        }
+                        else if (data.StartsWith("REMATCH_DECLINE"))
+                        {
+                            OnRematchDecline?.Invoke();
                         }
                     }
                 }

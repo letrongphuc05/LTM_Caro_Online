@@ -11,6 +11,17 @@ namespace CaroOnline
     {
         private readonly CaroOnline.History.HistoryManagerClient historyManager;
         private BoardManager boardManager;
+        private Label lblTimer;
+        private System.Windows.Forms.Timer? uiUpdateTimer;
+
+        private bool isRematchRequested = false;
+        private bool isClosing = false; // Biến chống kẹt hộp thoại khi đang đóng Form
+
+        // UI Bảng hỏi tái đấu
+        private Panel pnlRematch;
+        private Label lblRematchMessage;
+        private Button btnRematchYes;
+        private Button btnRematchNo;
 
         public FormMain(bool isPlayer1 = true, string opponentName = "Khách")
         {
@@ -19,10 +30,10 @@ namespace CaroOnline
             boardManager = new BoardManager(pnlChessBoard);
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
+            boardManager.TimerExpired += BoardManager_TimerExpired;
+            boardManager.TimerTick += BoardManager_TimerTick;
             boardManager.DrawChessBoard();
 
-            // [NOTE QUAN TRỌNG - LẮNG NGHE SỰ KIỆN]:
-            // Đăng ký nhận tín hiệu từ mạng thay vì dùng biến tĩnh
             SocketManager.Instance.OnReceiveMove += Network_OnReceiveMove;
             SocketManager.Instance.OnOpponentDisconnected += Network_OnOpponentDisconnected;
             SocketManager.Instance.OnConnectionChanged += Network_OnConnectionChanged;
@@ -32,13 +43,13 @@ namespace CaroOnline
             btnConnect.Enabled = false;
             btnConnect.Text = "Đang trong trận...";
 
-            // [NOTE QUAN TRỌNG - FIX ĐỒNG BỘ LƯỢT VÀ KÝ HIỆU]:
             boardManager.IsMyTurn = isPlayer1;
             boardManager.MySymbol = isPlayer1 ? "X" : "O";
 
             if (isPlayer1)
             {
                 UpdateStatus($"Bạn đi trước (X). Đối thủ: {opponentName}");
+                boardManager.StartTurnTimer();
             }
             else
             {
@@ -51,17 +62,21 @@ namespace CaroOnline
             this.Size = new Size(1600, 950);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(240, 240, 245);
-            SetupSkinSelectorUI();
 
-            // Đăng ký sự kiện Load để quét các nước cờ bị kẹt
+            SetupTimerUI();
+            SetupSkinSelectorUI();
+            SetupRematchDialogUI();
+
+            uiUpdateTimer = new System.Windows.Forms.Timer();
+            uiUpdateTimer.Interval = 100;
+            uiUpdateTimer.Tick += UIUpdateTimer_Tick;
+            uiUpdateTimer.Start();
+
             this.Load += FormMain_Load;
         }
 
         private void FormMain_Load(object? sender, EventArgs e)
         {
-            // [NOTE QUAN TRỌNG - FIX RACE CONDITION]:
-            // Nếu mạng nhận được nước đi quá nhanh lúc Form chưa vẽ xong, SocketManager sẽ lưu tạm.
-            // Khi Form Load xong, ta lấy nước đi đó ra thực thi.
             if (SocketManager.Instance.PendingMoveX >= 0 && SocketManager.Instance.PendingMoveY >= 0)
             {
                 Network_OnReceiveMove(SocketManager.Instance.PendingMoveX, SocketManager.Instance.PendingMoveY);
@@ -69,7 +84,7 @@ namespace CaroOnline
                 SocketManager.Instance.PendingMoveY = -1;
             }
         }
-        // Xem lịch sử
+
         private void LoadAllHistory()
         {
             historyManager.LoadAllHistory();
@@ -79,7 +94,6 @@ namespace CaroOnline
         {
             LoadAllHistory();
         }
-        // GIAO TIẾP GIAO DIỆN 
 
         private void btnConnect_Click(object? sender, EventArgs e) { }
 
@@ -90,26 +104,122 @@ namespace CaroOnline
             SocketManager.Instance.Send(payload);
         }
 
+        private void BoardManager_TimerExpired(object? sender, EventArgs e)
+        {
+            boardManager.IsMyTurn = false;
+            UpdateStatus("Hết giờ! Bạn đã mất lượt đi.");
+            SocketManager.Instance.Send("MOVE|-1|-1");
+        }
+
+        private void UIUpdateTimer_Tick(object? sender, EventArgs e)
+        {
+            if (boardManager == null || lblTimer == null)
+                return;
+
+            int timeRemaining = boardManager.GetTimeRemaining();
+            lblTimer.Text = timeRemaining.ToString();
+
+            if (timeRemaining <= 0)
+                lblTimer.ForeColor = Color.FromArgb(128, 128, 128);
+            else if (timeRemaining <= 5)
+                lblTimer.ForeColor = Color.FromArgb(255, 0, 0);
+            else if (timeRemaining <= 10)
+                lblTimer.ForeColor = Color.FromArgb(255, 85, 0);
+            else if (timeRemaining <= 15)
+                lblTimer.ForeColor = Color.FromArgb(255, 165, 0);
+            else
+                lblTimer.ForeColor = Color.FromArgb(0, 128, 0);
+        }
+
+        private void BoardManager_TimerTick(object? sender, int timeRemaining)
+        {
+            if (lblTimer.InvokeRequired)
+            {
+                lblTimer.Invoke(new Action(() => BoardManager_TimerTick(sender, timeRemaining)));
+                return;
+            }
+
+            lblTimer.Text = timeRemaining.ToString();
+
+            if (timeRemaining <= 10)
+                lblTimer.ForeColor = Color.FromArgb(255, 0, 0);
+            else if (timeRemaining <= 20)
+                lblTimer.ForeColor = Color.FromArgb(255, 165, 0);
+            else
+                lblTimer.ForeColor = Color.FromArgb(34, 139, 34);
+        }
+
         private void BoardManager_GameEnded(object? sender, string result)
         {
             boardManager.IsMyTurn = false;
-            if (result == "YOU_WIN")
+            boardManager.StopTurnTimer();
+
+            string message = result == "YOU_WIN" ? "Chúc mừng! Bạn đã chiến thắng." : "Bạn đã thua. Chúc may mắn lần sau!";
+            isRematchRequested = false;
+
+            lblRematchMessage.Text = message + "\n\nBạn có muốn tái đấu không?";
+            btnRematchYes.Visible = true;
+            btnRematchNo.Visible = true;
+            pnlRematch.Visible = true;
+            pnlRematch.BringToFront();
+        }
+
+        // TÁI ĐẤU DÙNG TỌA ĐỘ ẢO XUYÊN QUA SERVER
+        private void HandleRematchRequest()
+        {
+            if (isRematchRequested)
             {
-                MessageBox.Show("Chúc mừng! Bạn đã chiến thắng.", "Kết thúc", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                SocketManager.Instance.Send("MOVE|-4|-4"); // ĐỒNG Ý TÁI ĐẤU
+                PerformRematch();
             }
-            else if (result == "YOU_LOSE")
+            else
             {
-                MessageBox.Show("Bạn đã thua. Chúc may mắn lần sau!", "Kết thúc", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                lblRematchMessage.Text = "Đối thủ muốn tái đấu.\nBạn có đồng ý không?";
+                btnRematchYes.Visible = true;
+                btnRematchNo.Visible = true;
+                pnlRematch.Visible = true;
+                pnlRematch.BringToFront();
             }
+        }
+
+        private void PerformRematch()
+        {
+            pnlRematch.Visible = false;
+            boardManager.StopTurnTimer();
+            boardManager.DrawChessBoard();
+            boardManager.IsMyTurn = false;
+            boardManager.StartTurnTimer();
+
+            lblTimer.Text = "30";
+            lblTimer.ForeColor = Color.FromArgb(0, 128, 0);
+
+            UpdateStatus("Trận mới bắt đầu...");
+        }
+
+        private void HandleRematchDeclined()
+        {
+            if (isClosing) return; // Nếu đang đóng rồi thì không hiện hộp thoại nữa
+            isClosing = true;
+
+            MessageBox.Show("Đối thủ không muốn tái đấu. Trận đấu kết thúc.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            this.Close();
         }
 
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // [NOTE QUAN TRỌNG - CHỐNG TRÀN BỘ NHỚ]:
-            // Phải hủy đăng ký sự kiện khi Form đóng để tránh lỗi nhân đôi nước cờ ở các trận sau
+            isClosing = true;
+            boardManager.StopTurnTimer();
+            if (uiUpdateTimer != null)
+            {
+                uiUpdateTimer.Stop();
+                uiUpdateTimer.Dispose();
+            }
             SocketManager.Instance.OnReceiveMove -= Network_OnReceiveMove;
             SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
             SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
+
+            // Bắn mật mã TỪ CHỐI TÁI ĐẤU khi tắt ngang cửa sổ
+            SocketManager.Instance.Send("MOVE|-2|-2");
         }
 
         public void Network_OnConnectionChanged(bool isConnected, string message)
@@ -122,11 +232,35 @@ namespace CaroOnline
             UpdateStatus(message);
         }
 
+        // TRUNG TÂM GIẢI MÃ TỌA ĐỘ ẢO
         public void Network_OnReceiveMove(int x, int y)
         {
             if (this.InvokeRequired)
             {
                 this.Invoke(new Action(() => Network_OnReceiveMove(x, y)));
+                return;
+            }
+
+            if (x == -1 && y == -1) // ĐỐI THỦ HẾT GIỜ
+            {
+                boardManager.IsMyTurn = true;
+                boardManager.StartTurnTimer();
+                UpdateStatus("Đối thủ bị hết giờ. Đã chuyển lượt cho bạn!");
+                return;
+            }
+            else if (x == -2 && y == -2) // ĐỐI THỦ TỪ CHỐI / THOÁT
+            {
+                HandleRematchDeclined();
+                return;
+            }
+            else if (x == -3 && y == -3) // ĐỐI THỦ XIN TÁI ĐẤU
+            {
+                HandleRematchRequest();
+                return;
+            }
+            else if (x == -4 && y == -4) // ĐỐI THỦ ĐỒNG Ý
+            {
+                PerformRematch();
                 return;
             }
 
@@ -144,9 +278,13 @@ namespace CaroOnline
                 return;
             }
 
+            if (isClosing) return;
+            isClosing = true;
+
             boardManager.IsMyTurn = false;
             MessageBox.Show("Đối thủ đã ngắt kết nối hoặc thoát phòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             UpdateStatus("Đối thủ đã thoát.");
+            this.Close();
         }
 
         private void UpdateStatus(string statusMessage)
@@ -161,9 +299,88 @@ namespace CaroOnline
             }
         }
 
-        // UI CHỌN màu 
-
         private ComboBox cbSkinSelector;
+
+        private void SetupRematchDialogUI()
+        {
+            pnlRematch = new Panel();
+            pnlRematch.Size = new Size(350, 150);
+            pnlRematch.BackColor = Color.White;
+            pnlRematch.BorderStyle = BorderStyle.FixedSingle;
+            pnlRematch.Visible = false;
+
+            lblRematchMessage = new Label();
+            lblRematchMessage.Font = new Font("Arial", 11, FontStyle.Bold);
+            lblRematchMessage.TextAlign = ContentAlignment.MiddleCenter;
+            lblRematchMessage.Dock = DockStyle.Top;
+            lblRematchMessage.Height = 80;
+
+            btnRematchYes = new Button();
+            btnRematchYes.Text = "Tái Đấu";
+            btnRematchYes.Size = new Size(100, 40);
+            btnRematchYes.Location = new Point(50, 90);
+            btnRematchYes.BackColor = Color.FromArgb(70, 130, 180);
+            btnRematchYes.ForeColor = Color.White;
+            btnRematchYes.FlatStyle = FlatStyle.Flat;
+            btnRematchYes.Cursor = Cursors.Hand;
+            btnRematchYes.Click += (s, e) => {
+                isRematchRequested = true;
+                SocketManager.Instance.Send("MOVE|-3|-3"); // XIN TÁI ĐẤU
+                lblRematchMessage.Text = "Đang chờ đối thủ xác nhận...";
+                btnRematchYes.Visible = false;
+                btnRematchNo.Visible = false;
+            };
+
+            btnRematchNo = new Button();
+            btnRematchNo.Text = "Thoát";
+            btnRematchNo.Size = new Size(100, 40);
+            btnRematchNo.Location = new Point(200, 90);
+            btnRematchNo.BackColor = Color.IndianRed;
+            btnRematchNo.ForeColor = Color.White;
+            btnRematchNo.FlatStyle = FlatStyle.Flat;
+            btnRematchNo.Cursor = Cursors.Hand;
+            btnRematchNo.Click += (s, e) => {
+                SocketManager.Instance.Send("MOVE|-2|-2"); // TỪ CHỐI
+                this.Close();
+            };
+
+            pnlRematch.Controls.Add(lblRematchMessage);
+            pnlRematch.Controls.Add(btnRematchYes);
+            pnlRematch.Controls.Add(btnRematchNo);
+            this.Controls.Add(pnlRematch);
+        }
+
+        private void SetupTimerUI()
+        {
+            Panel pnlTimerBackground = new Panel();
+            pnlTimerBackground.Size = new Size(130, 100);
+            pnlTimerBackground.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            pnlTimerBackground.BackColor = Color.FromArgb(255, 250, 205);
+            pnlTimerBackground.BorderStyle = BorderStyle.FixedSingle;
+            pnlTimerBackground.BringToFront();
+            pnlTimerBackground.Margin = new Padding(10);
+            this.Controls.Add(pnlTimerBackground);
+
+            Label lblTimerTitle = new Label();
+            lblTimerTitle.Text = "Thời Gian";
+            lblTimerTitle.Location = new Point(5, 5);
+            lblTimerTitle.Size = new Size(120, 20);
+            lblTimerTitle.Font = new Font("Arial", 10, FontStyle.Bold);
+            lblTimerTitle.ForeColor = Color.FromArgb(0, 0, 0);
+            lblTimerTitle.TextAlign = ContentAlignment.MiddleCenter;
+            pnlTimerBackground.Controls.Add(lblTimerTitle);
+
+            lblTimer = new Label();
+            lblTimer.Text = "30";
+            lblTimer.Location = new Point(5, 25);
+            lblTimer.Size = new Size(120, 70);
+            lblTimer.Font = new Font("Arial", 48, FontStyle.Bold);
+            lblTimer.ForeColor = Color.FromArgb(220, 20, 60);
+            lblTimer.TextAlign = ContentAlignment.MiddleCenter;
+            lblTimer.BackColor = Color.Transparent;
+            lblTimer.BorderStyle = BorderStyle.None;
+            pnlTimerBackground.Controls.Add(lblTimer);
+        }
 
         private void SetupSkinSelectorUI()
         {
@@ -366,6 +583,14 @@ namespace CaroOnline
                 pnlChessBoard.Size = new Size(Math.Max(400, chessboardWidth), Math.Max(400, chessboardHeight));
                 panel1.Location = new Point(chessboardWidth, 0);
                 panel1.Size = new Size(panelWidth, chessboardHeight);
+
+                if (pnlRematch != null)
+                {
+                    pnlRematch.Location = new Point(
+                        pnlChessBoard.Location.X + (pnlChessBoard.Width - pnlRematch.Width) / 2,
+                        pnlChessBoard.Location.Y + (pnlChessBoard.Height - pnlRematch.Height) / 2
+                    );
+                }
             }
         }
 
