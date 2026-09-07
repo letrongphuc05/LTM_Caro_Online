@@ -14,6 +14,10 @@ namespace CaroOnline.Network
         private bool isConnected = false;
         private string logFilePath = "client_log.txt";
 
+        // THÊM: Biến lưu trữ IP và Port thực tế đang kết nối
+        public string IP { get; private set; } = "";
+        public int Port { get; private set; } = 0;
+
         public Action<string>? OnReceiveChallenge;
         public Action<string>? OnReceiveHistory; // Tính năng mới từ nhánh Gia-Huy
         public Action<string[]>? OnUpdateOnlineList;
@@ -62,6 +66,10 @@ namespace CaroOnline.Network
                 client.Connect(ip, port);
                 stream = client.GetStream();
                 isConnected = true;
+
+                // THÊM: Cập nhật IP và Port thực tế sau khi connect thành công
+                this.IP = ip;
+                this.Port = port;
 
                 WriteLog($"Kết nối thành công tới Server tại {ip}:{port}.");
                 OnConnectionChanged?.Invoke(true, "Kết nối Server thành công!");

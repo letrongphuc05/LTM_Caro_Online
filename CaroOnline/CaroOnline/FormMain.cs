@@ -9,13 +9,23 @@ namespace CaroOnline
 {
     public partial class FormMain : Form
     {
+        // Biến lưu trữ lịch sử để biết ai đi trước ở ván tái đấu
+        private bool amIWinner = false;
+
         private readonly CaroOnline.History.HistoryManagerClient historyManager;
         private BoardManager boardManager;
         private Label lblTimer;
+        private Panel pnlTimerBackground;
+        private Panel pnlStatusBorder;
+        private Color statusBorderDefaultColor = Color.FromArgb(50, 130, 0);
         private System.Windows.Forms.Timer? uiUpdateTimer;
+        private System.Windows.Forms.Timer? blinkingTimer;
+        private bool isBlinking = false;
+        private int blinkCounter = 0;
 
         private bool isRematchRequested = false;
-        private bool isClosing = false; // Biến chống kẹt hộp thoại khi đang đóng Form
+        private bool isClosing = false;
+        private bool isPlayer1 = true;
 
         // UI Bảng hỏi tái đấu
         private Panel pnlRematch;
@@ -23,9 +33,18 @@ namespace CaroOnline
         private Button btnRematchYes;
         private Button btnRematchNo;
 
-        public FormMain(bool isPlayer1 = true, string opponentName = "Khách")
+        public FormMain(bool isPlayer1Param = true, string opponentName = "Khách")
         {
             InitializeComponent();
+
+            try
+            {
+                txtIP.Text = SocketManager.Instance.IP;
+                txtPort.Text = SocketManager.Instance.Port.ToString();
+            }
+            catch { }
+
+            isPlayer1 = isPlayer1Param;
             historyManager = new CaroOnline.History.HistoryManagerClient();
             boardManager = new BoardManager(pnlChessBoard);
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
@@ -43,17 +62,18 @@ namespace CaroOnline
             btnConnect.Enabled = false;
             btnConnect.Text = "Đang trong trận...";
 
-            boardManager.IsMyTurn = isPlayer1;
-            boardManager.MySymbol = isPlayer1 ? "X" : "O";
-
-            if (isPlayer1)
+            // Lấy "Quyền chủ phòng" (Player 1) để tung đồng xu quyết định ai đi trước
+            if (isPlayer1Param)
             {
-                UpdateStatus($"Bạn đi trước (X). Đối thủ: {opponentName}");
-                boardManager.StartTurnTimer();
+                bool p1GoesFirst = new Random().Next(0, 2) == 0; // Tung đồng xu 50/50
+                // Bắn tọa độ mật mã "-5" để thông báo cho đối thủ ai là người đi trước
+                SocketManager.Instance.Send($"MOVE|-5|{(p1GoesFirst ? 1 : 0)}");
+                ApplyTurnLogic(p1GoesFirst, false);
             }
             else
             {
-                UpdateStatus($"Bạn đi sau (O). Chờ {opponentName} đánh...");
+                UpdateStatus("Đang tung đồng xu quyết định người đi trước...");
+                boardManager.IsMyTurn = false;
             }
 
             this.AutoSize = false;
@@ -73,11 +93,36 @@ namespace CaroOnline
             uiUpdateTimer.Start();
 
             this.Load += FormMain_Load;
+            pnlChessBoard.Resize += PnlChessBoard_Resize;
+        }
+
+        // Hàm tái sử dụng để thiết lập quyền đi trước
+        private void ApplyTurnLogic(bool amIFirst, bool isRematch)
+        {
+            boardManager.IsMyTurn = amIFirst;
+            boardManager.MySymbol = amIFirst ? "X" : "O"; // Người đi trước mặc định là X
+
+            if (amIFirst)
+            {
+                boardManager.StartTurnTimer();
+                string msg = isRematch ? "Bạn đã thắng ván trước. Bạn được đi trước (X)!" : "Kết quả Random: Bạn đi trước (X)!";
+                UpdateStatus(msg);
+            }
+            else
+            {
+                boardManager.StopTurnTimer();
+                lblTimer.Text = "30";
+                lblTimer.ForeColor = Color.FromArgb(0, 128, 0);
+
+                string msg = isRematch ? "Đối thủ thắng ván trước. Chờ đối thủ đánh (X)..." : "Kết quả Random: Đối thủ đi trước (X). Đang chờ...";
+                UpdateStatus(msg);
+            }
         }
 
         private void FormMain_Load(object? sender, EventArgs e)
         {
-            if (SocketManager.Instance.PendingMoveX >= 0 && SocketManager.Instance.PendingMoveY >= 0)
+            // Bắt sớm kết quả Random nếu Server chuyển dữ liệu nhanh hơn lúc form kịp Load xong
+            if (SocketManager.Instance.PendingMoveX >= 0 && SocketManager.Instance.PendingMoveY >= 0 || SocketManager.Instance.PendingMoveX == -5)
             {
                 Network_OnReceiveMove(SocketManager.Instance.PendingMoveX, SocketManager.Instance.PendingMoveY);
                 SocketManager.Instance.PendingMoveX = -1;
@@ -96,6 +141,14 @@ namespace CaroOnline
         }
 
         private void btnConnect_Click(object? sender, EventArgs e) { }
+
+        private void PnlChessBoard_Resize(object? sender, EventArgs e)
+        {
+            if (boardManager != null)
+            {
+                boardManager.OnBoardResized();
+            }
+        }
 
         private void BoardManager_PlayerMarked(object? sender, Point point)
         {
@@ -140,19 +193,122 @@ namespace CaroOnline
             }
 
             lblTimer.Text = timeRemaining.ToString();
+            lblStatus.Text = $"Thời gian còn lại: {timeRemaining}s";
 
-            if (timeRemaining <= 10)
+            if (timeRemaining <= 5)
+            {
+                isBlinking = true;
+                if (!blinkingTimer?.Enabled ?? true)
+                {
+                    if (blinkingTimer == null)
+                    {
+                        blinkingTimer = new System.Windows.Forms.Timer();
+                        blinkingTimer.Interval = 300;
+                        blinkingTimer.Tick += BlinkingTimer_Tick;
+                    }
+                    blinkingTimer.Start();
+                }
                 lblTimer.ForeColor = Color.FromArgb(255, 0, 0);
-            else if (timeRemaining <= 20)
+                lblStatus.ForeColor = Color.FromArgb(255, 0, 0);
+            }
+            else if (timeRemaining <= 10)
+            {
+                isBlinking = true;
+                if (!blinkingTimer?.Enabled ?? true)
+                {
+                    if (blinkingTimer == null)
+                    {
+                        blinkingTimer = new System.Windows.Forms.Timer();
+                        blinkingTimer.Interval = 500;
+                        blinkingTimer.Tick += BlinkingTimer_Tick;
+                    }
+                    blinkingTimer.Start();
+                }
                 lblTimer.ForeColor = Color.FromArgb(255, 165, 0);
+                lblStatus.ForeColor = Color.FromArgb(255, 165, 0);
+            }
             else
+            {
+                if (blinkingTimer?.Enabled ?? false)
+                {
+                    blinkingTimer.Stop();
+                }
+                isBlinking = false;
+                blinkCounter = 0;
                 lblTimer.ForeColor = Color.FromArgb(34, 139, 34);
+                lblStatus.ForeColor = Color.DarkGreen;
+                if (pnlTimerBackground != null)
+                {
+                    pnlTimerBackground.BackColor = Color.FromArgb(255, 250, 205);
+                }
+                if (pnlStatusBorder != null)
+                {
+                    pnlStatusBorder.BackColor = statusBorderDefaultColor;
+                }
+            }
+        }
+
+        private void BlinkingTimer_Tick(object? sender, EventArgs e)
+        {
+            if (pnlTimerBackground == null && pnlStatusBorder == null) return;
+
+            blinkCounter++;
+            bool isBlink = (blinkCounter % 2 == 0);
+
+            if (int.TryParse(lblTimer.Text, out int timeRemaining))
+            {
+                if (timeRemaining <= 5)
+                {
+                    Color redColor = isBlink
+                        ? Color.FromArgb(255, 0, 0)
+                        : Color.FromArgb(139, 0, 0);
+
+                    if (pnlTimerBackground != null)
+                        pnlTimerBackground.BackColor = redColor;
+
+                    if (pnlStatusBorder != null)
+                        pnlStatusBorder.BackColor = redColor;
+                }
+                else if (timeRemaining <= 10)
+                {
+                    Color yellowColor = isBlink
+                        ? Color.FromArgb(255, 255, 0)
+                        : Color.FromArgb(255, 250, 205);
+
+                    if (pnlTimerBackground != null)
+                        pnlTimerBackground.BackColor = yellowColor;
+
+                    if (pnlStatusBorder != null)
+                        pnlStatusBorder.BackColor = yellowColor;
+                }
+                else
+                {
+                    if (pnlTimerBackground != null)
+                        pnlTimerBackground.BackColor = Color.FromArgb(255, 250, 205);
+
+                    if (pnlStatusBorder != null)
+                        pnlStatusBorder.BackColor = statusBorderDefaultColor;
+                }
+            }
         }
 
         private void BoardManager_GameEnded(object? sender, string result)
         {
             boardManager.IsMyTurn = false;
             boardManager.StopTurnTimer();
+
+            if (blinkingTimer?.Enabled ?? false)
+            {
+                blinkingTimer.Stop();
+            }
+            isBlinking = false;
+            blinkCounter = 0;
+
+            // LƯU LẠI LỊCH SỬ THẮNG THUA CHO VÁN TÁI ĐẤU
+            if (result == "YOU_WIN" || result == "YOU_LOSE")
+            {
+                amIWinner = (result == "YOU_WIN");
+            }
 
             string message = result == "YOU_WIN" ? "Chúc mừng! Bạn đã chiến thắng." : "Bạn đã thua. Chúc may mắn lần sau!";
             isRematchRequested = false;
@@ -164,12 +320,11 @@ namespace CaroOnline
             pnlRematch.BringToFront();
         }
 
-        // TÁI ĐẤU DÙNG TỌA ĐỘ ẢO XUYÊN QUA SERVER
         private void HandleRematchRequest()
         {
             if (isRematchRequested)
             {
-                SocketManager.Instance.Send("MOVE|-4|-4"); // ĐỒNG Ý TÁI ĐẤU
+                SocketManager.Instance.Send("MOVE|-4|-4");
                 PerformRematch();
             }
             else
@@ -185,20 +340,17 @@ namespace CaroOnline
         private void PerformRematch()
         {
             pnlRematch.Visible = false;
+
             boardManager.StopTurnTimer();
             boardManager.DrawChessBoard();
-            boardManager.IsMyTurn = false;
-            boardManager.StartTurnTimer();
 
-            lblTimer.Text = "30";
-            lblTimer.ForeColor = Color.FromArgb(0, 128, 0);
-
-            UpdateStatus("Trận mới bắt đầu...");
+            // Áp dụng quyền đi trước dựa trên việc người này có thắng ván trước đó hay không
+            ApplyTurnLogic(amIWinner, true);
         }
 
         private void HandleRematchDeclined()
         {
-            if (isClosing) return; // Nếu đang đóng rồi thì không hiện hộp thoại nữa
+            if (isClosing) return;
             isClosing = true;
 
             MessageBox.Show("Đối thủ không muốn tái đấu. Trận đấu kết thúc.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -218,7 +370,6 @@ namespace CaroOnline
             SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
             SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
 
-            // Bắn mật mã TỪ CHỐI TÁI ĐẤU khi tắt ngang cửa sổ
             SocketManager.Instance.Send("MOVE|-2|-2");
         }
 
@@ -232,7 +383,6 @@ namespace CaroOnline
             UpdateStatus(message);
         }
 
-        // TRUNG TÂM GIẢI MÃ TỌA ĐỘ ẢO
         public void Network_OnReceiveMove(int x, int y)
         {
             if (this.InvokeRequired)
@@ -248,26 +398,36 @@ namespace CaroOnline
                 UpdateStatus("Đối thủ bị hết giờ. Đã chuyển lượt cho bạn!");
                 return;
             }
-            else if (x == -2 && y == -2) // ĐỐI THỦ TỪ CHỐI / THOÁT
+            else if (x == -2 && y == -2) // TỪ CHỐI TÁI ĐẤU
             {
                 HandleRematchDeclined();
                 return;
             }
-            else if (x == -3 && y == -3) // ĐỐI THỦ XIN TÁI ĐẤU
+            else if (x == -3 && y == -3) // XIN TÁI ĐẤU
             {
                 HandleRematchRequest();
                 return;
             }
-            else if (x == -4 && y == -4) // ĐỐI THỦ ĐỒNG Ý
+            else if (x == -4 && y == -4) // ĐỒNG Ý TÁI ĐẤU
             {
                 PerformRematch();
+                return;
+            }
+            else if (x == -5) // TỌA ĐỘ MẬT MÃ TUNG ĐỒNG XU
+            {
+                bool p1GoesFirst = (y == 1);
+                bool amIFirst = !p1GoesFirst; // Mình là Player 2 nên kết quả ngược lại P1
+                ApplyTurnLogic(amIFirst, false);
                 return;
             }
 
             boardManager.ReceiveOpponentMove(x, y);
             boardManager.IsMyTurn = true;
             pnlChessBoard.Invalidate();
-            UpdateStatus("Đến lượt bạn.");
+
+            Point lastMove = boardManager.LastOpponentMove;
+            int timeRemaining = boardManager.GetTimeRemaining();
+            UpdateStatus($"Đến lượt bạn. Đối thủ đánh ô ({lastMove.X}, {lastMove.Y}). Suy nghĩ còn lại: {timeRemaining}s");
         }
 
         public void Network_OnOpponentDisconnected()
@@ -325,7 +485,7 @@ namespace CaroOnline
             btnRematchYes.Cursor = Cursors.Hand;
             btnRematchYes.Click += (s, e) => {
                 isRematchRequested = true;
-                SocketManager.Instance.Send("MOVE|-3|-3"); // XIN TÁI ĐẤU
+                SocketManager.Instance.Send("MOVE|-3|-3");
                 lblRematchMessage.Text = "Đang chờ đối thủ xác nhận...";
                 btnRematchYes.Visible = false;
                 btnRematchNo.Visible = false;
@@ -340,7 +500,7 @@ namespace CaroOnline
             btnRematchNo.FlatStyle = FlatStyle.Flat;
             btnRematchNo.Cursor = Cursors.Hand;
             btnRematchNo.Click += (s, e) => {
-                SocketManager.Instance.Send("MOVE|-2|-2"); // TỪ CHỐI
+                SocketManager.Instance.Send("MOVE|-2|-2");
                 this.Close();
             };
 
@@ -352,7 +512,7 @@ namespace CaroOnline
 
         private void SetupTimerUI()
         {
-            Panel pnlTimerBackground = new Panel();
+            pnlTimerBackground = new Panel();
             pnlTimerBackground.Size = new Size(130, 100);
             pnlTimerBackground.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             pnlTimerBackground.BackColor = Color.FromArgb(255, 250, 205);
@@ -416,6 +576,7 @@ namespace CaroOnline
         {
             pnlChessBoard = new Panel();
             lblStatus = new Label();
+            pnlStatusBorder = new Panel();
             btnConnect = new Button();
             btnHistory = new Button();
             txtIP = new TextBox();
@@ -438,16 +599,25 @@ namespace CaroOnline
             pnlChessBoard.TabIndex = 0;
 
             lblStatus.BackColor = Color.FromArgb(230, 255, 230);
-            lblStatus.BorderStyle = BorderStyle.FixedSingle;
+            lblStatus.BorderStyle = BorderStyle.None;
             lblStatus.Font = new Font("Arial", 9F);
             lblStatus.ForeColor = Color.DarkGreen;
-            lblStatus.Location = new Point(10, 230);
+            lblStatus.Location = new Point(2, 2);
             lblStatus.Name = "lblStatus";
             lblStatus.Padding = new Padding(5);
-            lblStatus.Size = new Size(280, 50);
+            lblStatus.Size = new Size(276, 46);
             lblStatus.TabIndex = 4;
             lblStatus.Text = "Sẵn sàng.";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
+
+            pnlStatusBorder.BackColor = statusBorderDefaultColor;
+            pnlStatusBorder.BorderStyle = BorderStyle.None;
+            pnlStatusBorder.Location = new Point(10, 230);
+            pnlStatusBorder.Name = "pnlStatusBorder";
+            pnlStatusBorder.Size = new Size(280, 50);
+            pnlStatusBorder.Padding = new Padding(3);
+            pnlStatusBorder.TabIndex = 4;
+            pnlStatusBorder.Controls.Add(lblStatus);
 
             btnConnect.BackColor = Color.FromArgb(70, 130, 180);
             btnConnect.Cursor = Cursors.Hand;
@@ -481,14 +651,14 @@ namespace CaroOnline
             txtIP.Name = "txtIP";
             txtIP.Size = new Size(280, 20);
             txtIP.TabIndex = 1;
-            txtIP.Text = "127.0.0.1";
+            txtIP.Text = "";
 
             txtPort.Font = new Font("Arial", 9F);
             txtPort.Location = new Point(10, 125);
             txtPort.Name = "txtPort";
             txtPort.Size = new Size(280, 20);
             txtPort.TabIndex = 2;
-            txtPort.Text = "8080";
+            txtPort.Text = "";
 
             panel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
             panel1.AutoScroll = true;
@@ -499,7 +669,7 @@ namespace CaroOnline
             panel1.Controls.Add(lblIPLabel);
             panel1.Controls.Add(label1);
             panel1.Controls.Add(txtPort);
-            panel1.Controls.Add(lblStatus);
+            panel1.Controls.Add(pnlStatusBorder);
             panel1.Controls.Add(txtIP);
             panel1.Controls.Add(btnConnect);
             panel1.Controls.Add(btnHistory);

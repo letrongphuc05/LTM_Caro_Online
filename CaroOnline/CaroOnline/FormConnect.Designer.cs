@@ -100,6 +100,7 @@
             // txtPort
             // 
             txtPort.FormattingEnabled = true;
+            txtPort.DropDownStyle = ComboBoxStyle.DropDown;
             txtPort.Items.AddRange(new object[] { "9999", "8080" });
             txtPort.Location = new Point(296, 197);
             txtPort.Name = "txtPort";
@@ -109,6 +110,7 @@
             // txtIP
             // 
             txtIP.FormattingEnabled = true;
+            txtIP.DropDownStyle = ComboBoxStyle.DropDown;
             txtIP.Items.AddRange(new object[] { "127.0.0.1", "192.168.1.10", "192.168.1.100" });
             txtIP.Location = new Point(283, 153);
             txtIP.Name = "txtIP";

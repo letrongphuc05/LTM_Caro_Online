@@ -15,7 +15,12 @@ namespace CaroOnline
 
             lstOnlinePlayers.SelectionMode = SelectionMode.One;
             lstOnlinePlayers.Enabled = true;
+            lstOnlinePlayers.Cursor = Cursors.Hand;
             btnSendChallenge.Click += btnSendChallenge_Click;
+
+            // Add mouse events for hand cursor effect on player list
+            lstOnlinePlayers.MouseEnter += (s, e) => lstOnlinePlayers.Cursor = Cursors.Hand;
+            lstOnlinePlayers.MouseLeave += (s, e) => lstOnlinePlayers.Cursor = Cursors.Default;
 
             SocketManager.Instance.OnUpdateOnlineList += UpdateOnlineList;
             SocketManager.Instance.OnReceiveChallenge += HandleIncomingChallenge;
