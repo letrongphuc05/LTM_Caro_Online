@@ -15,6 +15,8 @@ namespace CaroOnline.Server.Spectator
             = new Dictionary<string, List<ClientConnection>>();
 
         private readonly object locker = new object();
+        private readonly Dictionary<string, List<string>> moveHistory
+    = new Dictionary<string, List<string>>();
 
         // Them spectator vao phong
         public bool AddSpectator(string roomId, ClientConnection client)
@@ -95,6 +97,30 @@ namespace CaroOnline.Server.Spectator
             }
         }
 
+        public void SaveMove(string roomId, string moveMessage)
+        {
+            lock (locker)
+            {
+                if (!moveHistory.ContainsKey(roomId))
+                {
+                    moveHistory[roomId] = new List<string>();
+                }
+
+                moveHistory[roomId].Add(moveMessage);
+            }
+        }
+
+        public List<string> GetMoveHistory(string roomId)
+        {
+            lock (locker)
+            {
+                if (!moveHistory.ContainsKey(roomId))
+                    return new List<string>();
+
+                return new List<string>(moveHistory[roomId]);
+            }
+        }
+
         // Gui message toi toan bo spectator
         public async Task BroadcastAsync(
             string roomId,
@@ -112,7 +138,7 @@ namespace CaroOnline.Server.Spectator
                 );
             }
 
-            byte[] data = Encoding.UTF8.GetBytes(message);
+            byte[] data = Encoding.UTF8.GetBytes(message + "\n");
 
             foreach (ClientConnection spectator in clients)
             {
@@ -161,10 +187,8 @@ namespace CaroOnline.Server.Spectator
         {
             lock (locker)
             {
-                if (spectators.ContainsKey(roomId))
-                {
-                    spectators.Remove(roomId);
-                }
+                spectators.Remove(roomId);
+                moveHistory.Remove(roomId);
             }
         }
 
@@ -187,5 +211,6 @@ namespace CaroOnline.Server.Spectator
                 }
             }
         }
+        
     }
 }

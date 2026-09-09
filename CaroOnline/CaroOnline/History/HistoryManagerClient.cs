@@ -6,6 +6,8 @@ namespace CaroOnline.History
     {
         private readonly HistoryNetworkBridge networkBridge;
 
+        public event System.Action? HistoryUpdated;
+
         public HistoryManagerClient()
         {
             networkBridge = new HistoryNetworkBridge();
@@ -45,6 +47,7 @@ namespace CaroOnline.History
         public void HandleServerMessage(string message)
         {
             networkBridge.Receive(message);
+            HistoryUpdated?.Invoke();
         }
     }
 }

@@ -104,5 +104,11 @@ namespace CaroOnline.Server.History
         {
             return historyService.GetAll();
         }
+
+        // Xoa lich su cua phien Server hien tai
+        public void Clear()
+        {
+            historyService.Clear();
+        }
     }
 }

@@ -172,7 +172,29 @@ namespace CaroOnline.Logic
         public void ReceiveOpponentMove(int x, int y)
         {
             Button btn = matrix[y][x];
-            string opponentSymbol = MySymbol == "X" ? "O" : "X";
+
+            string opponentSymbol;
+
+            // Spectator: luân phiên X và O
+            if (string.IsNullOrEmpty(MySymbol))
+            {
+                int moveCount = 0;
+
+                foreach (var row in matrix)
+                {
+                    foreach (Button b in row)
+                    {
+                        if (!string.IsNullOrEmpty(b.Text))
+                            moveCount++;
+                    }
+                }
+
+                opponentSymbol = (moveCount % 2 == 0) ? "X" : "O";
+            }
+            else
+            {
+                opponentSymbol = MySymbol == "X" ? "O" : "X";
+            }
 
             Mark(btn, opponentSymbol);
 
@@ -181,8 +203,12 @@ namespace CaroOnline.Logic
 
             HighlightLastMove(btn);
 
-            IsMyTurn = true;
-            StartTurnTimer();
+            // Spectator không chạy timer
+            if (!string.IsNullOrEmpty(MySymbol))
+            {
+                IsMyTurn = true;
+                StartTurnTimer();
+            }
 
             if (CheckWin(btn))
             {

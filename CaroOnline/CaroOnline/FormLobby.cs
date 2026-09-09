@@ -17,6 +17,7 @@ namespace CaroOnline
             lstOnlinePlayers.Enabled = true;
             lstOnlinePlayers.Cursor = Cursors.Hand;
             btnSendChallenge.Click += btnSendChallenge_Click;
+            btnWatchMatch.Click += btnWatchMatch_Click;
 
             // Add mouse events for hand cursor effect on player list
             lstOnlinePlayers.MouseEnter += (s, e) => lstOnlinePlayers.Cursor = Cursors.Hand;
@@ -136,10 +137,13 @@ namespace CaroOnline
             if (lstMatchRooms.SelectedItem != null)
             {
                 string matchId = lstMatchRooms.SelectedItem.ToString();
-                SocketManager.Instance.JoinRoomAsSpectator(matchId);
 
+                // Tạo bàn cờ trước để đăng ký nhận MOVE
                 FormMain watchBoard = new FormMain(false, "Khán giả");
-                watchBoard.Tag = "Spectator";
+                watchBoard.Tag = matchId;
+
+                // Sau khi FormMain đã sẵn sàng mới gửi yêu cầu xem
+                SocketManager.Instance.JoinRoomAsSpectator(matchId);
 
                 this.Hide();
                 watchBoard.ShowDialog();
@@ -154,6 +158,5 @@ namespace CaroOnline
         private void button1_Click(object sender, EventArgs e) { }
         private void lstOnlinePlayers_SelectedIndexChanged(object sender, EventArgs e) { }
         private void label2_Click(object sender, EventArgs e) { }
-        private void btnWatchMatch_Click_1(object sender, EventArgs e) { }
     }
 }

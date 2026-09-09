@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using System.Threading;
 using CaroOnline.Logic;
@@ -26,6 +27,13 @@ namespace CaroOnline
         private bool isRematchRequested = false;
         private bool isClosing = false;
         private bool isPlayer1 = true;
+        private bool isSpectator = false;
+        private bool historyResultSent = false;
+
+        // UI lịch sử trận đấu
+        private Panel pnlHistory;
+        private Label lblHistoryTitle;
+        private DataGridView dgvHistory;
 
         // UI Bảng hỏi tái đấu
         private Panel pnlRematch;
@@ -45,8 +53,14 @@ namespace CaroOnline
             catch { }
 
             isPlayer1 = isPlayer1Param;
+            isSpectator = opponentName == "Khán giả";
             historyManager = new CaroOnline.History.HistoryManagerClient();
             boardManager = new BoardManager(pnlChessBoard);
+            SetupTimerUI();
+            SetupSkinSelectorUI();
+            SetupRematchDialogUI();
+            SetupHistoryUI();
+            historyManager.HistoryUpdated += RefreshHistoryPanel;
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
             boardManager.TimerExpired += BoardManager_TimerExpired;
@@ -63,11 +77,22 @@ namespace CaroOnline
             btnConnect.Text = "Đang trong trận...";
 
             // Lấy "Quyền chủ phòng" (Player 1) để tung đồng xu quyết định ai đi trước
-            if (isPlayer1Param)
+            // Nếu là khán giả thì không tham gia lượt chơi
+            if (isSpectator)
             {
-                bool p1GoesFirst = new Random().Next(0, 2) == 0; // Tung đồng xu 50/50
-                // Bắn tọa độ mật mã "-5" để thông báo cho đối thủ ai là người đi trước
-                SocketManager.Instance.Send($"MOVE|-5|{(p1GoesFirst ? 1 : 0)}");
+                boardManager.IsMyTurn = false;
+                boardManager.MySymbol = "";
+                UpdateStatus("Đang xem trận đấu...");
+            }
+            else if (isPlayer1Param)
+            {
+                // Player 1 tung đồng xu
+                bool p1GoesFirst = new Random().Next(0, 2) == 0;
+
+                SocketManager.Instance.Send(
+                    $"MOVE|-5|{(p1GoesFirst ? 1 : 0)}"
+                );
+
                 ApplyTurnLogic(p1GoesFirst, false);
             }
             else
@@ -83,10 +108,7 @@ namespace CaroOnline
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(240, 240, 245);
 
-            SetupTimerUI();
-            SetupSkinSelectorUI();
-            SetupRematchDialogUI();
-
+     
             uiUpdateTimer = new System.Windows.Forms.Timer();
             uiUpdateTimer.Interval = 100;
             uiUpdateTimer.Tick += UIUpdateTimer_Tick;
@@ -137,7 +159,119 @@ namespace CaroOnline
 
         private void btnHistory_Click(object? sender, EventArgs e)
         {
+            if (pnlHistory.Visible)
+            {
+                pnlHistory.Visible = false;
+                btnHistory.Text = "Xem lịch sử";
+                return;
+            }
+
+            pnlHistory.Visible = true;
+            pnlHistory.BringToFront();
+            btnHistory.Text = "Ẩn lịch sử";
+            RenderHistory(historyManager.GetHistory());
             LoadAllHistory();
+        }
+
+        private void SetupHistoryUI()
+        {
+            pnlHistory = new Panel();
+            pnlHistory.Location = new Point(10, 330);
+            pnlHistory.Size = new Size(280, 550);
+            pnlHistory.BorderStyle = BorderStyle.FixedSingle;
+            pnlHistory.BackColor = Color.White;
+            pnlHistory.Visible = false;
+            pnlHistory.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+
+            lblHistoryTitle = new Label();
+            lblHistoryTitle.Text = "LỊCH SỬ TRẬN ĐẤU";
+            lblHistoryTitle.Font = new Font("Arial", 10F, FontStyle.Bold);
+            lblHistoryTitle.TextAlign = ContentAlignment.MiddleCenter;
+            lblHistoryTitle.Dock = DockStyle.Top;
+            lblHistoryTitle.Height = 34;
+            lblHistoryTitle.BackColor = Color.FromArgb(70, 130, 180);
+            lblHistoryTitle.ForeColor = Color.White;
+
+            dgvHistory = new DataGridView();
+            dgvHistory.Dock = DockStyle.Fill;
+            dgvHistory.ReadOnly = true;
+            dgvHistory.AllowUserToAddRows = false;
+            dgvHistory.AllowUserToDeleteRows = false;
+            dgvHistory.AllowUserToResizeRows = false;
+            dgvHistory.RowHeadersVisible = false;
+            dgvHistory.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvHistory.MultiSelect = false;
+            dgvHistory.AutoGenerateColumns = false;
+            dgvHistory.BackgroundColor = Color.White;
+            dgvHistory.BorderStyle = BorderStyle.None;
+            dgvHistory.EnableHeadersVisualStyles = true;
+            dgvHistory.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn
+            { Name = "colGame", HeaderText = "Trận", Width = 42 });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn
+            { Name = "colTime", HeaderText = "Thời gian", Width = 60 });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn
+            { Name = "colPlayers", HeaderText = "Người chơi", Width = 105 });
+            dgvHistory.Columns.Add(new DataGridViewTextBoxColumn
+            { Name = "colResult", HeaderText = "Kết quả", Width = 68 });
+
+            pnlHistory.Controls.Add(dgvHistory);
+            pnlHistory.Controls.Add(lblHistoryTitle);
+            panel1.Controls.Add(pnlHistory);
+            pnlHistory.BringToFront();
+        }
+
+        private void RefreshHistoryPanel()
+        {
+            if (IsDisposed || !IsHandleCreated)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(RefreshHistoryPanel));
+                return;
+            }
+
+            if (pnlHistory.Visible)
+                RenderHistory(historyManager.GetHistory());
+        }
+
+        private void RenderHistory(
+            System.Collections.Generic.List<CaroOnline.History.GameHistoryInfo> histories)
+        {
+            if (dgvHistory == null)
+                return;
+
+            dgvHistory.Rows.Clear();
+
+            var finishedHistories = histories
+                .Where(h => !string.IsNullOrWhiteSpace(h.Winner))
+                .OrderBy(h => h.StartTime)
+                .ToList();
+
+            if (finishedHistories.Count == 0)
+            {
+                dgvHistory.Rows.Add("-", "-", "Chưa có", "trận");
+                return;
+            }
+
+            for (int i = 0; i < finishedHistories.Count; i++)
+            {
+                var history = finishedHistories[i];
+                string time = history.EndTime != default
+                    ? history.EndTime.ToString("HH:mm:ss")
+                    : history.StartTime.ToString("HH:mm:ss");
+
+                string players =
+                    $"{history.PlayerX} vs {history.PlayerO}";
+
+                dgvHistory.Rows.Add(
+                    $"Game {i + 1}",
+                    time,
+                    players,
+                    $"{history.Winner} thắng");
+            }
         }
 
         private void btnConnect_Click(object? sender, EventArgs e) { }
@@ -152,7 +286,12 @@ namespace CaroOnline
 
         private void BoardManager_PlayerMarked(object? sender, Point point)
         {
+            // Khán giả không được đánh cờ
+            if (isSpectator)
+                return;
+
             UpdateStatus("Đối thủ đang suy nghĩ...");
+
             string payload = $"MOVE|{point.X}|{point.Y}";
             SocketManager.Instance.Send(payload);
         }
@@ -310,6 +449,15 @@ namespace CaroOnline
                 amIWinner = (result == "YOU_WIN");
             }
 
+            // Báo Server khi ván kết thúc. Chỉ người thắng gửi WIN.
+            if (!isSpectator &&
+                result == "YOU_WIN" &&
+                !historyResultSent)
+            {
+                historyResultSent = true;
+                SocketManager.Instance.Send("GAME_END|WIN");
+            }
+
             string message = result == "YOU_WIN" ? "Chúc mừng! Bạn đã chiến thắng." : "Bạn đã thua. Chúc may mắn lần sau!";
             isRematchRequested = false;
 
@@ -339,6 +487,7 @@ namespace CaroOnline
 
         private void PerformRematch()
         {
+            historyResultSent = false;
             pnlRematch.Visible = false;
 
             boardManager.StopTurnTimer();
@@ -370,7 +519,18 @@ namespace CaroOnline
             SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
             SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
 
-            SocketManager.Instance.Send("MOVE|-2|-2");
+            if (isSpectator)
+            {
+                string roomId = Tag?.ToString() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(roomId))
+                {
+                    SocketManager.Instance.Send($"LEAVE_SPECTATE|{roomId}");
+                }
+            }
+            else
+            {
+                SocketManager.Instance.Send("MOVE|-2|-2");
+            }
         }
 
         public void Network_OnConnectionChanged(bool isConnected, string message)
@@ -388,6 +548,19 @@ namespace CaroOnline
             if (this.InvokeRequired)
             {
                 this.Invoke(new Action(() => Network_OnReceiveMove(x, y)));
+                return;
+            }
+            // KHÁN GIẢ: chỉ nhận và hiển thị nước cờ
+            if (isSpectator)
+            {
+                if (x >= 0 && y >= 0)
+                {
+                    boardManager.ReceiveOpponentMove(x, y);
+                    pnlChessBoard.Invalidate();
+                }
+
+                boardManager.IsMyTurn = false;
+                UpdateStatus("Đang xem trận đấu...");
                 return;
             }
 
@@ -420,14 +593,18 @@ namespace CaroOnline
                 ApplyTurnLogic(amIFirst, false);
                 return;
             }
-
             boardManager.ReceiveOpponentMove(x, y);
-            boardManager.IsMyTurn = true;
             pnlChessBoard.Invalidate();
+
+    
+            boardManager.IsMyTurn = true;
 
             Point lastMove = boardManager.LastOpponentMove;
             int timeRemaining = boardManager.GetTimeRemaining();
-            UpdateStatus($"Đến lượt bạn. Đối thủ đánh ô ({lastMove.X}, {lastMove.Y}). Suy nghĩ còn lại: {timeRemaining}s");
+
+            UpdateStatus(
+                $"Đến lượt bạn. Đối thủ đánh ô ({lastMove.X}, {lastMove.Y}). Suy nghĩ còn lại: {timeRemaining}s"
+            );
         }
 
         public void Network_OnOpponentDisconnected()
@@ -766,18 +943,37 @@ namespace CaroOnline
 
         private void panel1_Paint(object sender, PaintEventArgs e)
         {
+            if (panel1.ClientRectangle.Width <= 0 ||
+                panel1.ClientRectangle.Height <= 0)
+            {
+                return;
+            }
+
             using (Brush brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                 panel1.ClientRectangle,
                 Color.FromArgb(248, 248, 255),
                 Color.FromArgb(230, 240, 250),
                 System.Drawing.Drawing2D.LinearGradientMode.Vertical))
             {
-                e.Graphics.FillRectangle(brush, panel1.ClientRectangle);
+                e.Graphics.FillRectangle(
+                    brush,
+                    panel1.ClientRectangle
+                );
             }
 
-            using (Pen pen = new Pen(Color.FromArgb(70, 130, 180), 2))
+            if (panel1.Width > 1 && panel1.Height > 1)
             {
-                e.Graphics.DrawRectangle(pen, 0, 0, panel1.Width - 1, panel1.Height - 1);
+                using (Pen pen = new Pen(
+                    Color.FromArgb(70, 130, 180), 2))
+                {
+                    e.Graphics.DrawRectangle(
+                        pen,
+                        0,
+                        0,
+                        panel1.Width - 1,
+                        panel1.Height - 1
+                    );
+                }
             }
         }
 

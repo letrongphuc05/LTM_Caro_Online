@@ -73,7 +73,7 @@
             btnWatchMatch.TabIndex = 3;
             btnWatchMatch.Text = "Xem trận 👁️";
             btnWatchMatch.UseVisualStyleBackColor = true;
-            btnWatchMatch.Click += btnWatchMatch_Click_1;
+            btnWatchMatch.Click += btnWatchMatch_Click;
             // 
             // label1
             // 

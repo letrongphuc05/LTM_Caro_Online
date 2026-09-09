@@ -1,91 +1,53 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text.Json;
 
 namespace CaroOnline.Server.History
 {
     internal class HistoryStorage
     {
-        private readonly string filePath;
+        // Lịch sử chỉ tồn tại trong RAM của phiên Server hiện tại.
+        // Khi Server dừng, ServerController sẽ gọi Clear() và toàn bộ lịch sử biến mất.
+        private static readonly object syncRoot = new object();
+        private static List<GameHistory> runtimeHistories = new List<GameHistory>();
 
         public HistoryStorage(string filePath = "game_history.json")
         {
-            this.filePath = filePath;
+            // Giữ tham số để tương thích với code cũ. Không ghi file.
         }
 
-        // Luu danh sach lich su vao file JSON
         public void Save(List<GameHistory> histories)
         {
             if (histories == null)
                 return;
 
-            try
+            lock (syncRoot)
             {
-                string json = JsonSerializer.Serialize(
-                    histories,
-                    new JsonSerializerOptions
-                    {
-                        WriteIndented = true
-                    });
-
-                File.WriteAllText(filePath, json);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(
-                    $"Khong the luu lich su: {ex.Message}");
+                runtimeHistories = new List<GameHistory>(histories);
             }
         }
 
-        // Doc lich su tu file JSON
         public List<GameHistory> Load()
         {
-            try
+            lock (syncRoot)
             {
-                if (!File.Exists(filePath))
-                    return new List<GameHistory>();
-
-                string json =
-                    File.ReadAllText(filePath);
-
-                if (string.IsNullOrWhiteSpace(json))
-                    return new List<GameHistory>();
-
-                List<GameHistory>? histories =
-                    JsonSerializer.Deserialize<List<GameHistory>>(json);
-
-                return histories ??
-                       new List<GameHistory>();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(
-                    $"Khong the doc lich su: {ex.Message}");
-
-                return new List<GameHistory>();
+                return new List<GameHistory>(runtimeHistories);
             }
         }
 
-        // Xoa file lich su
         public void Clear()
         {
-            try
+            lock (syncRoot)
             {
-                if (File.Exists(filePath))
-                    File.Delete(filePath);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(
-                    $"Khong the xoa lich su: {ex.Message}");
+                runtimeHistories.Clear();
             }
         }
 
-        // Kiem tra file lich su co ton tai
         public bool Exists()
         {
-            return File.Exists(filePath);
+            lock (syncRoot)
+            {
+                return runtimeHistories.Count > 0;
+            }
         }
     }
 }
