@@ -16,6 +16,9 @@ namespace CaroOnline.History
         // Lay tat ca lich su
         public void RequestAll()
         {
+            // Mỗi lần bấm "Xem lịch sử" là lấy lại đúng dữ liệu của phiên Server hiện tại.
+            historyClient.ClearHistory();
+
             string message =
                 historyRequest.GetAll();
 

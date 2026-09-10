@@ -54,8 +54,9 @@ namespace CaroOnline.Server.History
 
         private string HandleGetAll()
         {
+            // Nút "Xem lịch sử" chỉ hiển thị các ván đã kết thúc.
             List<GameHistory> histories =
-                historyQuery.GetAll();
+                historyQuery.GetFinishedGames();
 
             return BuildResponse(histories);
         }
