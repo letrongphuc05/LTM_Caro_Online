@@ -12,6 +12,16 @@ namespace CaroOnline
     {
         // Biến lưu trữ lịch sử để biết ai đi trước ở ván tái đấu
         private bool amIWinner = false;
+        private bool isGameEnded = false;
+
+        // Biến đếm số lượt bỏ qua để xử lý logic AFK
+        private int myMissedTurns = 0;
+        private int opponentMissedTurns = 0;
+
+        // Biến phục vụ tính năng thoát trận và chờ kết nối (Đếm lùi 60 giây)
+        private Button btnSurrender;
+        private System.Windows.Forms.Timer? disconnectWaitTimer;
+        private int disconnectWaitTime = 60;
 
         private readonly CaroOnline.History.HistoryManagerClient historyManager;
         private BoardManager boardManager;
@@ -19,6 +29,8 @@ namespace CaroOnline
         private Panel pnlTimerBackground;
         private Panel pnlStatusBorder;
         private Color statusBorderDefaultColor = Color.FromArgb(50, 130, 0);
+
+        // Timer dùng để chớp đỏ màn hình cảnh báo khi sắp hết giờ đánh cờ
         private System.Windows.Forms.Timer? uiUpdateTimer;
         private System.Windows.Forms.Timer? blinkingTimer;
         private bool isBlinking = false;
@@ -56,10 +68,14 @@ namespace CaroOnline
             isSpectator = opponentName == "Khán giả";
             historyManager = new CaroOnline.History.HistoryManagerClient();
             boardManager = new BoardManager(pnlChessBoard);
+
             SetupTimerUI();
             SetupSkinSelectorUI();
             SetupRematchDialogUI();
             SetupHistoryUI();
+            SetupSurrenderUI(); // Khởi tạo nút Đầu hàng ở góc phải dưới
+
+            // Gán các Event cho Bàn cờ và Mạng
             historyManager.HistoryUpdated += RefreshHistoryPanel;
             boardManager.PlayerMarked += BoardManager_PlayerMarked;
             boardManager.GameEnded += BoardManager_GameEnded;
@@ -76,31 +92,30 @@ namespace CaroOnline
             btnConnect.Enabled = false;
             btnConnect.Text = "Đang trong trận...";
 
-            // Lấy "Quyền chủ phòng" (Player 1) để tung đồng xu quyết định ai đi trước
-            // Nếu là khán giả thì không tham gia lượt chơi
+            // Phân bổ lượt đánh ngay khi mới vào phòng
             if (isSpectator)
             {
+                // Nếu là khán giả thì vô hiệu hóa quyền thao tác bàn cờ
                 boardManager.IsMyTurn = false;
                 boardManager.MySymbol = "";
                 UpdateStatus("Đang xem trận đấu...");
             }
             else if (isPlayer1Param)
             {
-                // Player 1 tung đồng xu
+                // Player 1 (Chủ phòng) Random để tung đồng xu quyết định ai đi trước
                 bool p1GoesFirst = new Random().Next(0, 2) == 0;
 
-                SocketManager.Instance.Send(
-                    $"MOVE|-5|{(p1GoesFirst ? 1 : 0)}"
-                );
-
+                // Gửi kết quả ngẫu nhiên sang Player 2 thông qua tọa độ đặc biệt -5
+                SocketManager.Instance.Send($"MOVE|-5|{(p1GoesFirst ? 1 : 0)}");
                 ApplyTurnLogic(p1GoesFirst, false);
             }
             else
             {
                 UpdateStatus("Đang tung đồng xu quyết định người đi trước...");
-                boardManager.IsMyTurn = false;
+                boardManager.IsMyTurn = false; // Tạm khóa bàn cờ chờ dữ liệu tung đồng xu từ P1
             }
 
+            // Fix kích thước cố định để tránh vỡ giao diện
             this.AutoSize = false;
             this.AutoSizeMode = AutoSizeMode.GrowOnly;
             this.MinimumSize = new Size(1200, 700);
@@ -108,7 +123,6 @@ namespace CaroOnline
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(240, 240, 245);
 
-     
             uiUpdateTimer = new System.Windows.Forms.Timer();
             uiUpdateTimer.Interval = 100;
             uiUpdateTimer.Tick += UIUpdateTimer_Tick;
@@ -118,11 +132,60 @@ namespace CaroOnline
             pnlChessBoard.Resize += PnlChessBoard_Resize;
         }
 
-        // Hàm tái sử dụng để thiết lập quyền đi trước
+        // Tạo nút "Đầu hàng" hiển thị ở giao diện cạnh bàn cờ
+        private void SetupSurrenderUI()
+        {
+            btnSurrender = new Button();
+            btnSurrender.Text = "Đầu hàng"; // Đã đổi từ "Thoát trận" thành "Đầu hàng"
+            btnSurrender.Size = new Size(120, 35);
+            btnSurrender.Location = new Point(160, 840);
+            btnSurrender.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            btnSurrender.BackColor = Color.IndianRed;
+            btnSurrender.ForeColor = Color.White;
+            btnSurrender.FlatStyle = FlatStyle.Flat;
+            btnSurrender.Font = new Font("Arial", 10F, FontStyle.Bold);
+            btnSurrender.Cursor = Cursors.Hand;
+
+            // Ẩn nút với khán giả
+            btnSurrender.Visible = !isSpectator;
+
+            btnSurrender.Click += (s, e) =>
+            {
+                DialogResult res = MessageBox.Show("Bạn có chắc chắn muốn đầu hàng? Bạn sẽ bị xử thua ngay lập tức.", "Xác nhận đầu hàng", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (res == DialogResult.Yes)
+                {
+                    // Tọa độ -6 là tín hiệu báo đầu hàng
+                    SocketManager.Instance.Send("MOVE|-6|-6");
+                    MessageBox.Show("Bạn đã đầu hàng và bị xử thua.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    isGameEnded = true;
+                    isClosing = true;
+                    this.Close();
+                }
+            };
+            panel1.Controls.Add(btnSurrender);
+        }
+
+        // Hàm được gọi từ FormLobby khi người chơi bấm "Kết nối lại"
+        public void ReconnectFromLobby()
+        {
+            SocketManager.Instance.Send("MOVE|-8|-8"); // Gỡ timer đếm 60s bên máy đối thủ
+        }
+
+        // Hàm được gọi từ FormLobby khi người chơi bấm "Đầu hàng"
+        public void SurrenderFromLobby()
+        {
+            SocketManager.Instance.Send("MOVE|-6|-6"); // Xử thua mình
+            isGameEnded = true;
+            isClosing = true;
+            this.Close();
+        }
+
+        // Hàm đồng bộ lượt đi, thiết lập chữ (X hoặc O) và Text Status thông báo
         private void ApplyTurnLogic(bool amIFirst, bool isRematch)
         {
             boardManager.IsMyTurn = amIFirst;
-            boardManager.MySymbol = amIFirst ? "X" : "O"; // Người đi trước mặc định là X
+            boardManager.MySymbol = amIFirst ? "X" : "O"; // Người đi trước luôn là chữ X
 
             if (amIFirst)
             {
@@ -141,9 +204,9 @@ namespace CaroOnline
             }
         }
 
+        // Bắt trường hợp nhận được nước cờ từ Server nhưng FormMain chưa kịp Load xong giao diện
         private void FormMain_Load(object? sender, EventArgs e)
         {
-            // Bắt sớm kết quả Random nếu Server chuyển dữ liệu nhanh hơn lúc form kịp Load xong
             if (SocketManager.Instance.PendingMoveX >= 0 && SocketManager.Instance.PendingMoveY >= 0 || SocketManager.Instance.PendingMoveX == -5)
             {
                 Network_OnReceiveMove(SocketManager.Instance.PendingMoveX, SocketManager.Instance.PendingMoveY);
@@ -284,23 +347,42 @@ namespace CaroOnline
             }
         }
 
+        // Bắt sự kiện khi click đánh 1 ô cờ
         private void BoardManager_PlayerMarked(object? sender, Point point)
         {
-            // Khán giả không được đánh cờ
-            if (isSpectator)
-                return;
+            if (isSpectator) return;
+
+            // Đánh cờ hợp lệ thì reset đếm lỗi bỏ lượt
+            myMissedTurns = 0;
 
             UpdateStatus("Đối thủ đang suy nghĩ...");
 
+            // Đóng gói tọa độ thành lệnh và gửi đi
             string payload = $"MOVE|{point.X}|{point.Y}";
             SocketManager.Instance.Send(payload);
         }
 
+        // Xử lý khi hết 30s suy nghĩ mà chưa đánh cờ
         private void BoardManager_TimerExpired(object? sender, EventArgs e)
         {
             boardManager.IsMyTurn = false;
-            UpdateStatus("Hết giờ! Bạn đã mất lượt đi.");
+            myMissedTurns++;
+
+            // Gửi tọa độ ảo -1 báo cho đối phương biết mình bỏ lượt
             SocketManager.Instance.Send("MOVE|-1|-1");
+
+            // Cơ chế xử thua nếu cố tình AFK quá 2 lượt liên tiếp
+            if (myMissedTurns >= 2)
+            {
+                isGameEnded = true;
+                isClosing = true;
+                MessageBox.Show("Bạn đã bỏ qua 2 lượt liên tiếp (AFK) và bị xử thua!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                this.Close();
+            }
+            else
+            {
+                UpdateStatus("Hết giờ! Bạn đã mất lượt đi. (Cảnh báo: Bỏ 2 lượt sẽ bị xử thua)");
+            }
         }
 
         private void UIUpdateTimer_Tick(object? sender, EventArgs e)
@@ -334,6 +416,7 @@ namespace CaroOnline
             lblTimer.Text = timeRemaining.ToString();
             lblStatus.Text = $"Thời gian còn lại: {timeRemaining}s";
 
+            // Hiệu ứng cảnh báo bằng cách kích hoạt nhấp nháy UI
             if (timeRemaining <= 5)
             {
                 isBlinking = true;
@@ -431,6 +514,7 @@ namespace CaroOnline
             }
         }
 
+        // Được kích hoạt bởi Engine Bàn Cờ khi có chuỗi 5 ô liên tiếp
         private void BoardManager_GameEnded(object? sender, string result)
         {
             boardManager.IsMyTurn = false;
@@ -442,14 +526,23 @@ namespace CaroOnline
             }
             isBlinking = false;
             blinkCounter = 0;
+            isGameEnded = true;
 
-            // LƯU LẠI LỊCH SỬ THẮNG THUA CHO VÁN TÁI ĐẤU
+            // Nếu là khán giả xem xong trận thì báo và đóng form ra Lobby
+            if (isSpectator)
+            {
+                MessageBox.Show("Trận đấu đã kết thúc!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.Close();
+                return;
+            }
+
+            // LƯU LẠI LỊCH SỬ THẮNG THUA ĐỂ TÍNH QUYỀN ĐI TRƯỚC VÁN TÁI ĐẤU
             if (result == "YOU_WIN" || result == "YOU_LOSE")
             {
                 amIWinner = (result == "YOU_WIN");
             }
 
-            // Báo Server khi ván kết thúc. Chỉ người thắng gửi WIN.
+            // Gửi dữ liệu cho HistoryServer lưu lịch sử. Đảm bảo chỉ 1 máy (máy Thắng) gửi.
             if (!isSpectator &&
                 result == "YOU_WIN" &&
                 !historyResultSent)
@@ -488,12 +581,15 @@ namespace CaroOnline
         private void PerformRematch()
         {
             historyResultSent = false;
+            isGameEnded = false;
+            myMissedTurns = 0;         // Xóa bộ nhớ vi phạm AFK
+            opponentMissedTurns = 0;   // Xóa bộ nhớ vi phạm AFK đối thủ
             pnlRematch.Visible = false;
 
             boardManager.StopTurnTimer();
             boardManager.DrawChessBoard();
 
-            // Áp dụng quyền đi trước dựa trên việc người này có thắng ván trước đó hay không
+            // Người thắng ván trước sẽ được cấp quyền đi trước ở ván này
             ApplyTurnLogic(amIWinner, true);
         }
 
@@ -506,31 +602,65 @@ namespace CaroOnline
             this.Close();
         }
 
+        // Bắt sự kiện khi người dùng bấm nút [X] màu đỏ tắt cửa sổ Form
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            isClosing = true;
-            boardManager.StopTurnTimer();
-            if (uiUpdateTimer != null)
-            {
-                uiUpdateTimer.Stop();
-                uiUpdateTimer.Dispose();
-            }
-            SocketManager.Instance.OnReceiveMove -= Network_OnReceiveMove;
-            SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
-            SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
+            if (isClosing) return;
 
             if (isSpectator)
             {
+                isClosing = true;
                 string roomId = Tag?.ToString() ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(roomId))
                 {
                     SocketManager.Instance.Send($"LEAVE_SPECTATE|{roomId}");
                 }
+                return;
+            }
+
+            // Nếu người dùng lỡ bấm [X] tắt cửa sổ khi chưa hết trận, Form sẽ không thoát mà chuyển về Lobby dưới dạng tạm ẩn
+            if (!isGameEnded)
+            {
+                e.Cancel = true; // Hủy lệnh tự động Close Form của Windows
+                this.Hide();     // Chỉ ẩn Form đi
+
+                // -7 là lệnh báo cho đối phương biết mình đang ra Lobby
+                SocketManager.Instance.Send("MOVE|-7|-7");
+
+                // Mở bảng giao diện Kết nối lại ở Form Sảnh
+                if (FormLobby.Instance != null)
+                {
+                    FormLobby.Instance.ShowReconnectPrompt(this);
+                }
+                return;
             }
             else
             {
+                // Nếu trận đấu đã có kết quả (GameEnded), tắt hẳn thì báo -2 (Không tái đấu)
+                isClosing = true;
                 SocketManager.Instance.Send("MOVE|-2|-2");
             }
+        }
+
+        // Giải phóng triệt để tài nguyên khi Form chính thức bị tiêu hủy
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            boardManager?.StopTurnTimer();
+            if (uiUpdateTimer != null)
+            {
+                uiUpdateTimer.Stop();
+                uiUpdateTimer.Dispose();
+            }
+            if (disconnectWaitTimer != null)
+            {
+                disconnectWaitTimer.Stop();
+                disconnectWaitTimer.Dispose();
+            }
+            SocketManager.Instance.OnReceiveMove -= Network_OnReceiveMove;
+            SocketManager.Instance.OnOpponentDisconnected -= Network_OnOpponentDisconnected;
+            SocketManager.Instance.OnConnectionChanged -= Network_OnConnectionChanged;
+
+            base.OnFormClosed(e);
         }
 
         public void Network_OnConnectionChanged(bool isConnected, string message)
@@ -543,6 +673,7 @@ namespace CaroOnline
             UpdateStatus(message);
         }
 
+        // Hàm Core của Game: Xử lý mọi lệnh từ Server đổ về dưới dạng chuỗi `MOVE|x|y`
         public void Network_OnReceiveMove(int x, int y)
         {
             if (this.InvokeRequired)
@@ -550,7 +681,8 @@ namespace CaroOnline
                 this.Invoke(new Action(() => Network_OnReceiveMove(x, y)));
                 return;
             }
-            // KHÁN GIẢ: chỉ nhận và hiển thị nước cờ
+
+            // KHÁN GIẢ: chỉ nhận (x,y) và vẽ lên bàn cờ, không xét các lệnh điều khiển khác
             if (isSpectator)
             {
                 if (x >= 0 && y >= 0)
@@ -558,55 +690,167 @@ namespace CaroOnline
                     boardManager.ReceiveOpponentMove(x, y);
                     pnlChessBoard.Invalidate();
                 }
-
                 boardManager.IsMyTurn = false;
                 UpdateStatus("Đang xem trận đấu...");
                 return;
             }
 
-            if (x == -1 && y == -1) // ĐỐI THỦ HẾT GIỜ
+            // CHUỖI LỆNH ĐIỀU KHIỂN (x và y mang giá trị âm là các tín hiệu hệ thống)
+            if (x == -1 && y == -1)
             {
+                // Tọa độ (-1, -1): Tín hiệu đối thủ bị hết thời gian (mất lượt)
+                opponentMissedTurns++;
+
+                if (opponentMissedTurns >= 2)
+                {
+                    isGameEnded = true;
+                    isClosing = true;
+                    MessageBox.Show("Đối thủ đã bỏ qua 2 lượt liên tiếp (AFK). Bạn được xử thắng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    if (!this.Visible && FormLobby.Instance != null) FormLobby.Instance.HideReconnectPrompt();
+                    this.Close();
+                    return;
+                }
+
                 boardManager.IsMyTurn = true;
                 boardManager.StartTurnTimer();
-                UpdateStatus("Đối thủ bị hết giờ. Đã chuyển lượt cho bạn!");
+                UpdateStatus($"Đối thủ bị hết giờ (Lần {opponentMissedTurns}). Đã chuyển lượt cho bạn!");
                 return;
             }
-            else if (x == -2 && y == -2) // TỪ CHỐI TÁI ĐẤU
+            else if (x == -2 && y == -2)
             {
+                // Tọa độ (-2, -2): Tín hiệu đối thủ từ chối tái đấu
                 HandleRematchDeclined();
                 return;
             }
-            else if (x == -3 && y == -3) // XIN TÁI ĐẤU
+            else if (x == -3 && y == -3)
             {
+                // Tọa độ (-3, -3): Tín hiệu đối thủ gửi lời mời tái đấu
                 HandleRematchRequest();
                 return;
             }
-            else if (x == -4 && y == -4) // ĐỒNG Ý TÁI ĐẤU
+            else if (x == -4 && y == -4)
             {
+                // Tọa độ (-4, -4): Tín hiệu đối thủ đồng ý tái đấu
                 PerformRematch();
                 return;
             }
-            else if (x == -5) // TỌA ĐỘ MẬT MÃ TUNG ĐỒNG XU
+            else if (x == -5)
             {
+                // Tọa độ (-5, y): Tín hiệu mã hóa kết quả tung đồng xu từ Server/Chủ phòng
                 bool p1GoesFirst = (y == 1);
-                bool amIFirst = !p1GoesFirst; // Mình là Player 2 nên kết quả ngược lại P1
+                bool amIFirst = !p1GoesFirst; // Mình là Khách nên lấy logic ngược lại Chủ Phòng
                 ApplyTurnLogic(amIFirst, false);
                 return;
             }
+            else if (x == -6 && y == -6)
+            {
+                // Tọa độ (-6, -6): Tín hiệu đối thủ bấm nút Đầu hàng hoặc chọn Không kết nối lại
+                if (isClosing) return;
+                isClosing = true;
+                isGameEnded = true;
+                MessageBox.Show("Đối thủ đã đầu hàng. Bạn được xử thắng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Đóng hộp thoại ở sảnh (nếu có)
+                if (!this.Visible && FormLobby.Instance != null) FormLobby.Instance.HideReconnectPrompt();
+                this.Close();
+                return;
+            }
+            else if (x == -7 && y == -7)
+            {
+                // Tọa độ (-7, -7): Tín hiệu đối thủ tạm thoát ra sảnh (ẩn game hoặc rớt mạng nhẹ)
+                TriggerDisconnectWait();
+                return;
+            }
+            else if (x == -8 && y == -8)
+            {
+                // Tọa độ (-8, -8): Tín hiệu đối thủ đã bấm nút Kết nối lại vào trận
+                if (disconnectWaitTimer != null && disconnectWaitTimer.Enabled)
+                {
+                    disconnectWaitTimer.Stop(); // Hủy đồng hồ đếm ngược xử thua
+                    UpdateStatus("Đối thủ đã kết nối lại. Trận đấu tiếp tục!");
+                }
+                return;
+            }
+            else if (x == -9 && y == -9)
+            {
+                // Tọa độ (-9, -9): Tín hiệu báo đối thủ chọn nút Thoát (Không chờ mình reconnect) -> xử mình thua
+                if (isClosing) return;
+                isClosing = true;
+                isGameEnded = true;
+                MessageBox.Show("Đối thủ đã không chấp nhận chờ đợi thêm. Bạn bị xử thua!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                if (!this.Visible && FormLobby.Instance != null) FormLobby.Instance.HideReconnectPrompt();
+                this.Close();
+                return;
+            }
+            else if (x >= 0 && y >= 0)
+            {
+                // Nếu là tọa độ đánh cờ hợp lệ thì xóa bộ đếm AFK của đối phương
+                opponentMissedTurns = 0;
+            }
+
+            // Nếu không phải là lệnh điều khiển (Tọa độ >=0) thì vẽ cờ lên bàn
             boardManager.ReceiveOpponentMove(x, y);
             pnlChessBoard.Invalidate();
 
-    
             boardManager.IsMyTurn = true;
-
             Point lastMove = boardManager.LastOpponentMove;
             int timeRemaining = boardManager.GetTimeRemaining();
 
-            UpdateStatus(
-                $"Đến lượt bạn. Đối thủ đánh ô ({lastMove.X}, {lastMove.Y}). Suy nghĩ còn lại: {timeRemaining}s"
-            );
+            UpdateStatus($"Đến lượt bạn. Đối thủ đánh ô ({lastMove.X}, {lastMove.Y}). Suy nghĩ còn lại: {timeRemaining}s");
         }
 
+        // Logic hỏi người dùng muốn chờ đối thủ (Bị ẩn game) 60 giây hay là xử thắng nhận giải luôn
+        private void TriggerDisconnectWait()
+        {
+            DialogResult result = MessageBox.Show(
+                "Đối thủ đã tạm thoát ra sảnh (hoặc gián đoạn mạng). Bạn có muốn chờ 1 phút để đối thủ kết nối lại không?\n\n- Yes: Chờ trong 1 phút.\n- No: Thoát và xử thắng cho bạn.",
+                "Gián đoạn kết nối", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            if (result == DialogResult.Yes)
+            {
+                UpdateStatus("Đang chờ đối thủ kết nối lại (60s)...");
+                disconnectWaitTime = 60;
+                if (disconnectWaitTimer == null)
+                {
+                    disconnectWaitTimer = new System.Windows.Forms.Timer();
+                    disconnectWaitTimer.Interval = 1000;
+                    disconnectWaitTimer.Tick += DisconnectWaitTimer_Tick;
+                }
+                disconnectWaitTimer.Start();
+            }
+            else
+            {
+                SocketManager.Instance.Send("MOVE|-9|-9"); // Gửi tín hiệu xử thua (-9) cho bên kia
+                isGameEnded = true;
+                isClosing = true;
+                MessageBox.Show("Bạn đã chọn không chờ. Bạn được xử thắng do đối thủ bỏ trận!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                if (!this.Visible && FormLobby.Instance != null) FormLobby.Instance.HideReconnectPrompt();
+                this.Close();
+            }
+        }
+
+        // Đồng hồ đếm ngược chờ kết nối lại. Khi về 0 sẽ tự động gửi -9 và kết thúc form
+        private void DisconnectWaitTimer_Tick(object? sender, EventArgs e)
+        {
+            disconnectWaitTime--;
+            UpdateStatus($"Đang chờ đối thủ kết nối lại ({disconnectWaitTime}s)...");
+
+            if (disconnectWaitTime <= 0)
+            {
+                disconnectWaitTimer?.Stop();
+
+                SocketManager.Instance.Send("MOVE|-9|-9"); // Xử thua cho người kia
+                isGameEnded = true;
+                isClosing = true;
+                MessageBox.Show("Đã hết 1 phút chờ đợi. Bạn được xử thắng do đối thủ đã bỏ cuộc!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.Close();
+            }
+        }
+
+        // Xử lý khi Socket bị lỗi ngắt đột ngột (Lỗi đường truyền Internet, sập server)
         public void Network_OnOpponentDisconnected()
         {
             if (this.InvokeRequired)
@@ -616,11 +860,13 @@ namespace CaroOnline
             }
 
             if (isClosing) return;
+
+            isGameEnded = true;
             isClosing = true;
 
-            boardManager.IsMyTurn = false;
-            MessageBox.Show("Đối thủ đã ngắt kết nối hoặc thoát phòng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            UpdateStatus("Đối thủ đã thoát.");
+            if (!this.Visible && FormLobby.Instance != null) FormLobby.Instance.HideReconnectPrompt();
+
+            MessageBox.Show("Đường truyền bị mất kết nối (Mạng yếu/Rớt mạng). Trò chơi sẽ thoát về sảnh!", "Lỗi mạng", MessageBoxButtons.OK, MessageBoxIcon.Error);
             this.Close();
         }
 
