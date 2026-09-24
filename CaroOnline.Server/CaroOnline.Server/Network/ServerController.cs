@@ -331,7 +331,6 @@ namespace CaroOnline.Server.Network
                 return;
 
             // -5: thông báo ai được đi trước ở ván mới.
-            // Đây là lúc tạo history đầu tiên của phòng vì lúc này đã biết X/O thực tế.
             if (x == -5)
             {
                 bool player1GoesFirst = y == 1;
@@ -356,7 +355,7 @@ namespace CaroOnline.Server.Network
                     _activeHistoryGameIds[connection.RoomId] = history.GameId;
                 }
             }
-            // -4: hai người đồng ý tái đấu => mở một GameHistory mới.
+
             else if (x == -4)
             {
                 lock (_historyLock)
@@ -393,7 +392,7 @@ namespace CaroOnline.Server.Network
                     }
                 }
             }
-            // -1: người hiện tại hết giờ => đối thủ thắng.
+
             else if (x == -1)
             {
                 lock (_historyLock)
@@ -412,7 +411,7 @@ namespace CaroOnline.Server.Network
                     }
                 }
             }
-            // Nước đi thật trên bàn cờ.
+
             else if (x >= 0 && y >= 0)
             {
                 lock (_historyLock)
@@ -428,7 +427,7 @@ namespace CaroOnline.Server.Network
                     }
                 }
 
-                // Lưu cho spectator và phát theo thời gian thực.
+
                 _spectatorManager.SaveMove(
                     connection.RoomId.ToString(),
                     moveMessage);
@@ -438,19 +437,42 @@ namespace CaroOnline.Server.Network
                     moveMessage);
             }
 
-            // Luồng game 2 người hiện có: gửi lệnh MOVE cho đối thủ.
+
             ClientConnection? opponentClient = room.GetOpponent(connection);
-            if (opponentClient == null) return;
 
-            try
+
+            if (opponentClient != null)
             {
-                NetworkStream? opponentStream =
-                    opponentClient.Client.GetStream();
-
-                if (opponentStream != null)
-                    SendMessage(opponentStream, moveMessage);
+                try
+                {
+                    NetworkStream? opponentStream = opponentClient.Client.GetStream();
+                    if (opponentStream != null)
+                        SendMessage(opponentStream, moveMessage);
+                }
+                catch { }
             }
-            catch { }
+
+
+            if (x == -2 || x == -6 || x == -9)
+            {
+                int currentRoomId = connection.RoomId;
+
+
+                RoomManager.Instance.RemoveRoom(currentRoomId);
+
+                room.Player1.RoomId = -1;
+                room.Player2.RoomId = -1;
+
+                _spectatorManager.RemoveRoom(currentRoomId.ToString());
+                lock (_historyLock)
+                {
+                    _activeHistoryGameIds.Remove(currentRoomId);
+                }
+
+                BroadcastRoomList();
+
+                Log($"Phòng {currentRoomId} đã bị dọn dẹp do người chơi thoát ra sảnh.");
+            }
         }
 
         private void HandleGameEnd(

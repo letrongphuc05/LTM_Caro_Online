@@ -70,7 +70,6 @@ namespace CaroOnline
             boardManager = new BoardManager(pnlChessBoard);
 
             SetupTimerUI();
-            SetupSkinSelectorUI();
             SetupRematchDialogUI();
             SetupHistoryUI();
             SetupSurrenderUI(); // Khởi tạo nút Đầu hàng ở góc phải dưới
@@ -965,35 +964,7 @@ namespace CaroOnline
             pnlTimerBackground.Controls.Add(lblTimer);
         }
 
-        private void SetupSkinSelectorUI()
-        {
-            Label lblSkinTitle = new Label();
-            lblSkinTitle.Text = "Chọn Skin Quân Cờ:";
-            lblSkinTitle.Location = new Point(10, 300);
-            lblSkinTitle.AutoSize = true;
-            lblSkinTitle.Font = new Font("Arial", 9, FontStyle.Bold);
-            lblSkinTitle.ForeColor = Color.FromArgb(70, 130, 180);
-
-            cbSkinSelector = new ComboBox();
-            cbSkinSelector.Location = new Point(10, 325);
-            cbSkinSelector.Size = new Size(280, 25);
-            cbSkinSelector.DropDownStyle = ComboBoxStyle.DropDownList;
-
-            cbSkinSelector.Items.Add("Mặc định (X / O)");
-            cbSkinSelector.Items.Add("Skin CS2 (CT / T)");
-            cbSkinSelector.Items.Add("Hoạt hình (Tom / Jerry)");
-            cbSkinSelector.SelectedIndex = 0;
-
-            cbSkinSelector.SelectedIndexChanged += (s, e) => {
-                MessageBox.Show("Bạn đang chọn: " + cbSkinSelector.SelectedItem.ToString());
-            };
-
-            if (panel1 != null)
-            {
-                panel1.Controls.Add(lblSkinTitle);
-                panel1.Controls.Add(cbSkinSelector);
-            }
-        }
+      
 
         private void InitializeComponent()
         {

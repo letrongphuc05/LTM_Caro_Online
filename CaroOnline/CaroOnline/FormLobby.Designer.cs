@@ -62,7 +62,7 @@
             btnSendChallenge.Name = "btnSendChallenge";
             btnSendChallenge.Size = new Size(121, 29);
             btnSendChallenge.TabIndex = 2;
-            btnSendChallenge.Text = "Thách đấu ⚔️";
+            btnSendChallenge.Text = "Thách đấu ";
             btnSendChallenge.UseVisualStyleBackColor = true;
             // 
             // btnWatchMatch
@@ -71,7 +71,7 @@
             btnWatchMatch.Name = "btnWatchMatch";
             btnWatchMatch.Size = new Size(117, 29);
             btnWatchMatch.TabIndex = 3;
-            btnWatchMatch.Text = "Xem trận 👁️";
+            btnWatchMatch.Text = "Xem trận ";
             btnWatchMatch.UseVisualStyleBackColor = true;
             btnWatchMatch.Click += btnWatchMatch_Click;
             // 
@@ -82,7 +82,7 @@
             label1.Name = "label1";
             label1.Size = new Size(193, 20);
             label1.TabIndex = 4;
-            label1.Text = "\U0001f7e2 Người chơi đang Online";
+            label1.Text = " Người chơi đang Online";
             // 
             // label2
             // 
@@ -91,7 +91,7 @@
             label2.Name = "label2";
             label2.Size = new Size(205, 20);
             label2.TabIndex = 5;
-            label2.Text = "🎮 Các trận đấu đang diễn ra";
+            label2.Text = " Các trận đấu đang diễn ra";
             label2.Click += label2_Click;
             // 
             // FormLobby

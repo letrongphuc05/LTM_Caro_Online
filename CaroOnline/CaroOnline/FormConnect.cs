@@ -9,15 +9,13 @@ namespace CaroOnline
             InitializeComponent();
 
 
-            // Gọi hàm đổi giao diện mà bạn đã viết ở dưới
             ApplyCyberpunkUI();
 
-            // --- CHỈ THÊM ĐÚNG ĐOẠN TẠO NÚT CUỐN SÁCH NÀY ---
             Button btnHelp = new Button();
             btnHelp.Size = new Size(40, 40);
             btnHelp.Location = new Point(12, this.ClientSize.Height - 50);
 
-            // Đảm bảo đường dẫn này khớp với máy của bạn
+
             btnHelp.BackgroundImage = Properties.Resources.book;
             btnHelp.BackgroundImageLayout = ImageLayout.Zoom;
 
@@ -30,14 +28,12 @@ namespace CaroOnline
 
             btnHelp.Click += (s, e) =>
             {
-                string rules = "🎮 HƯỚNG DẪN CHƠI CARO ONLINE CHUẨN MỰC\n\n" +
+                string rules = "HƯỚNG DẪN CHƠI CARO ONLINE CHUẨN MỰC\n\n" +
                                "1. CÁCH CHƠI CƠ BẢN:\n" +
                                "   • Hai người chơi luân phiên đánh dấu X hoặc O.\n" +
                                "   • Trò chơi kết thúc khi có người chiến thắng hoặc hòa.\n\n" +
                                "2. ĐIỀU KIỆN CHIẾN THẮNG:\n" +
-                               "   • Xếp được 5 quân liên tiếp theo ngang, dọc, hoặc chéo.\n\n" +
-                               "3. MẸO CHIẾN THUẬT:\n" +
-                               "   • Kiểm soát trung tâm và tạo thế gọng kìm.";
+                               "   • Xếp được 5 quân liên tiếp theo ngang, dọc, hoặc chéo.\n\n";
 
                 MessageBox.Show(rules, "Cẩm nang Caro Online", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };

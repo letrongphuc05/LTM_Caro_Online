@@ -105,7 +105,7 @@
             btnConnect.Name = "btnConnect";
             btnConnect.Size = new Size(213, 41);
             btnConnect.TabIndex = 7;
-            btnConnect.Text = "Kết Nối Trực Tuyến 🚀";
+            btnConnect.Text = "Kết Nối Trực Tuyến ";
             btnConnect.TextImageRelation = TextImageRelation.ImageAboveText;
             btnConnect.UseVisualStyleBackColor = false;
             btnConnect.Click += btnConnect_Click;

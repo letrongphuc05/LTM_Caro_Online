@@ -23,14 +23,14 @@ namespace CaroOnline.Logic
         private System.Windows.Forms.Timer? turnTimer;
         private int timeRemaining = 30;
 
+        // Biến đếm số nước đi để xét Hòa
+        private int totalMoves = 0;
+
         public bool IsMyTurn { get; set; } = false;
         public string MySymbol { get; set; } = "X";
         public Point LastOpponentMove => lastOpponentMove;
 
-        // CHUẨN MỚI: Danh sách lưu lại đúng 5 ô chiến thắng để đổi màu nổi bật
         public List<Button> WinButtons { get; private set; } = new List<Button>();
-
-        // Giữ lại 2 biến này rỗng (Empty) để tương thích, FormMain không cần dùng Graphics để vẽ đè nữa
         public Point WinLineStart { get; private set; } = Point.Empty;
         public Point WinLineEnd { get; private set; } = Point.Empty;
 
@@ -51,10 +51,12 @@ namespace CaroOnline.Logic
             lastOpponentMoveButton = null;
             WinButtons.Clear();
 
-            // BẬT CHẾ ĐỘ CHỐNG LAG GIAO DIỆN
+            // Reset đếm nước đi khi ván mới bắt đầu
+            totalMoves = 0;
+
             chessBoard.SuspendLayout();
 
-            // TỐI ƯU TÁI ĐẤU: Nếu bàn cờ đã được tạo, chỉ reset Text thay vì hủy và tạo lại 400 nút (Tránh lag)
+            // Nếu bàn cờ đã được tạo, chỉ reset Text để tối ưu, không tạo lại 400 nút
             if (matrix.Count == Cfg.CHESS_BOARD_HEIGHT)
             {
                 for (int i = 0; i < Cfg.CHESS_BOARD_HEIGHT; i++)
@@ -63,18 +65,23 @@ namespace CaroOnline.Logic
                     {
                         Button btn = matrix[i][j];
                         btn.Text = "";
-                        btn.Enabled = true;
                         btn.Cursor = Cursors.Hand;
                         btn.BackColor = Color.FromArgb(245, 222, 179);
                         btn.FlatAppearance.BorderColor = Color.FromArgb(200, 165, 110);
                         btn.FlatAppearance.BorderSize = 1;
+
+                        // Reset lại hiệu ứng hover mặc định
+                        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(235, 210, 170);
+                        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(210, 180, 130);
+
+                        // XÓA ĐƯỜNG KẺ CHIẾN THẮNG KHI TÁI ĐẤU
+                        btn.Paint -= WinButton_Paint;
                     }
                 }
                 chessBoard.ResumeLayout(true);
                 return;
             }
 
-            // Nếu là lần đầu chạy (chưa có nút nào) thì mới khởi tạo
             chessBoard.Controls.Clear();
             matrix.Clear();
             chessBoard.BackColor = Color.FromArgb(220, 190, 150);
@@ -105,7 +112,6 @@ namespace CaroOnline.Logic
 
             int currentY = startY;
 
-            // TỐI ƯU BỘ NHỚ RAM: Chỉ tạo 1 đối tượng Font dùng chung cho 400 ô
             Font defaultFont = new Font("Arial", 11, FontStyle.Bold);
 
             for (int i = 0; i < Cfg.CHESS_BOARD_HEIGHT; i++)
@@ -161,25 +167,31 @@ namespace CaroOnline.Logic
                 PlayerMarked?.Invoke(this, location);
             }
 
+            // Tăng biến đếm mỗi khi bạn đánh cờ
+            totalMoves++;
+
             if (CheckWin(btn))
             {
                 HighlightWin("YOU_WIN");
                 StopTurnTimer();
                 GameEnded?.Invoke(this, "YOU_WIN");
             }
+            // Kiểm tra hòa: Đánh kín 400 ô (20x20) mà chưa Win thì báo Draw
+            else if (totalMoves == Cfg.CHESS_BOARD_WIDTH * Cfg.CHESS_BOARD_HEIGHT)
+            {
+                StopTurnTimer();
+                GameEnded?.Invoke(this, "DRAW");
+            }
         }
 
         public void ReceiveOpponentMove(int x, int y)
         {
             Button btn = matrix[y][x];
-
             string opponentSymbol;
 
-            // Spectator: luân phiên X và O
             if (string.IsNullOrEmpty(MySymbol))
             {
                 int moveCount = 0;
-
                 foreach (var row in matrix)
                 {
                     foreach (Button b in row)
@@ -188,7 +200,6 @@ namespace CaroOnline.Logic
                             moveCount++;
                     }
                 }
-
                 opponentSymbol = (moveCount % 2 == 0) ? "X" : "O";
             }
             else
@@ -199,27 +210,32 @@ namespace CaroOnline.Logic
             Mark(btn, opponentSymbol);
 
             lastOpponentMove = new Point(x, y);
-            lastOpponentMoveButton = btn;
 
             HighlightLastMove(btn);
 
-            // Spectator không chạy timer
             if (!string.IsNullOrEmpty(MySymbol))
             {
                 IsMyTurn = true;
                 StartTurnTimer();
             }
 
+            // Tăng biến đếm mỗi khi đối thủ đánh cờ
+            totalMoves++;
+
             if (CheckWin(btn))
             {
                 HighlightWin("YOU_LOSE");
                 GameEnded?.Invoke(this, "YOU_LOSE");
             }
+            // Kiểm tra hòa cho đối thủ
+            else if (totalMoves == Cfg.CHESS_BOARD_WIDTH * Cfg.CHESS_BOARD_HEIGHT)
+            {
+                GameEnded?.Invoke(this, "DRAW");
+            }
         }
 
         public void HighlightWin(string result)
         {
-            // Bôi Xanh nếu thắng, Bôi Đỏ nếu thua trực tiếp lên Button
             Color winBackColor = (result == "YOU_WIN") ? Color.LimeGreen : Color.Crimson;
             Color winForeColor = Color.White;
 
@@ -229,15 +245,45 @@ namespace CaroOnline.Logic
                 btn.ForeColor = winForeColor;
                 btn.FlatAppearance.BorderColor = Color.Black;
                 btn.FlatAppearance.BorderSize = 2;
+
+                // Gắn sự kiện vẽ đường kẻ đè lên nút
+                btn.Paint -= WinButton_Paint;
+                btn.Paint += WinButton_Paint;
             }
         }
 
+        // Highlight nước mới và xóa Highlight nước cũ của đối thủ
         private void HighlightLastMove(Button? btn)
         {
             if (btn == null) return;
+
+            // Xóa màu viền và nền của ô cờ cũ trước đó
+            if (lastOpponentMoveButton != null && lastOpponentMoveButton != btn)
+            {
+                if (lastOpponentMoveButton.Text == "X")
+                {
+                    lastOpponentMoveButton.BackColor = Color.FromArgb(255, 245, 238);
+                    lastOpponentMoveButton.FlatAppearance.BorderColor = Color.FromArgb(200, 100, 100);
+                    lastOpponentMoveButton.FlatAppearance.BorderSize = 1;
+                    lastOpponentMoveButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 245, 238);
+                }
+                else if (lastOpponentMoveButton.Text == "O")
+                {
+                    lastOpponentMoveButton.BackColor = Color.FromArgb(240, 248, 255);
+                    lastOpponentMoveButton.FlatAppearance.BorderColor = Color.FromArgb(100, 149, 237);
+                    lastOpponentMoveButton.FlatAppearance.BorderSize = 1;
+                    lastOpponentMoveButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(240, 248, 255);
+                }
+            }
+
+            // Tô màu xanh lá và viền đậm cho ô cờ mới nhất
             btn.BackColor = Color.FromArgb(144, 238, 144);
             btn.FlatAppearance.BorderSize = 2;
             btn.FlatAppearance.BorderColor = Color.FromArgb(34, 139, 34);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(144, 238, 144);
+
+            // Ghi nhớ lại ô vừa đánh để xoá ở lượt sau
+            lastOpponentMoveButton = btn;
         }
 
         public void OnBoardResized()
@@ -252,7 +298,7 @@ namespace CaroOnline.Logic
             }
 
             resizeDebounceTimer = new System.Windows.Forms.Timer();
-            resizeDebounceTimer.Interval = 300; // Tăng delay lên 300ms để đợi người dùng thả hẳn chuột ra
+            resizeDebounceTimer.Interval = 300;
             resizeDebounceTimer.Tick += (s, e) =>
             {
                 resizeDebounceTimer?.Stop();
@@ -290,7 +336,6 @@ namespace CaroOnline.Logic
             if (buttonWidth < 30) buttonWidth = 30;
             if (buttonHeight < 30) buttonHeight = 30;
 
-            // Bỏ qua nếu kích thước không thực sự thay đổi
             if (currentButtonWidth == buttonWidth && currentButtonHeight == buttonHeight) return;
 
             currentButtonWidth = buttonWidth;
@@ -303,7 +348,6 @@ namespace CaroOnline.Logic
 
             chessBoard.SuspendLayout();
 
-            // TỐI ƯU CỰC KỲ QUAN TRỌNG: Chỉ tạo 1 đối tượng Font mới dùng chung khi Zoom
             float newSize = Math.Max(8f, buttonWidth / 3.5f);
             Font newFont = new Font("Arial", newSize, FontStyle.Bold);
 
@@ -313,14 +357,12 @@ namespace CaroOnline.Logic
                 {
                     Button btn = matrix[i][j];
 
-                    // Gom chung vào 1 hàm set Bounds thay vì set rời rạc Width/Height/Location
                     Rectangle newBounds = new Rectangle(startX + (j * buttonWidth), startY + (i * buttonHeight), buttonWidth, buttonHeight);
                     if (btn.Bounds != newBounds)
                     {
                         btn.Bounds = newBounds;
                     }
 
-                    // Chỉ gán Font mới nếu size bị lệch để tránh giật
                     if (Math.Abs(btn.Font.Size - newSize) > 0.1f)
                     {
                         btn.Font = newFont;
@@ -334,7 +376,7 @@ namespace CaroOnline.Logic
         private void Mark(Button btn, string symbol)
         {
             btn.Text = symbol;
-            btn.Enabled = false;
+            // Đã bỏ dòng btn.Enabled = false; để không bị mờ màu
             btn.Cursor = Cursors.Default;
 
             if (symbol == "X")
@@ -343,6 +385,10 @@ namespace CaroOnline.Logic
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
                 btn.BackColor = Color.FromArgb(255, 245, 238);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(200, 100, 100);
+
+                // Tắt hiệu ứng đổi màu khi rà chuột qua nút X
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 245, 238);
+                btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(255, 245, 238);
             }
             else
             {
@@ -350,6 +396,10 @@ namespace CaroOnline.Logic
                 btn.Font = new Font("Arial", 13, FontStyle.Bold);
                 btn.BackColor = Color.FromArgb(240, 248, 255);
                 btn.FlatAppearance.BorderColor = Color.FromArgb(100, 149, 237);
+
+                // Tắt hiệu ứng đổi màu khi rà chuột qua nút O
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(240, 248, 255);
+                btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(240, 248, 255);
             }
         }
 
@@ -458,6 +508,45 @@ namespace CaroOnline.Logic
                 return true;
             }
             return false;
+        }
+
+        // HÀM VẼ ĐƯỜNG KẺ CHIẾN THẮNG TRỰC TIẾP LÊN NÚT
+        private void WinButton_Paint(object? sender, PaintEventArgs e)
+        {
+            Button? btn = sender as Button;
+            if (btn == null || WinButtons.Count < 5) return;
+
+            // Bật chế độ khử răng cưa để đường kẻ chéo trông mượt mà
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            Point first = (Point)WinButtons[0].Tag;
+            Point last = (Point)WinButtons[WinButtons.Count - 1].Tag;
+
+            // Bút vẽ: Màu đen, độ dày 5px
+            using (Pen linePen = new Pen(Color.Black, 5))
+            {
+                int w = btn.Width;
+                int h = btn.Height;
+
+                if (first.Y == last.Y) // Ngang
+                {
+                    e.Graphics.DrawLine(linePen, 0, h / 2, w, h / 2);
+                }
+                else if (first.X == last.X) // Dọc
+                {
+                    e.Graphics.DrawLine(linePen, w / 2, 0, w / 2, h);
+                }
+                else if ((first.X < last.X && first.Y < last.Y) || (first.X > last.X && first.Y > last.Y))
+                {
+                    // Chéo chính (\)
+                    e.Graphics.DrawLine(linePen, 0, 0, w, h);
+                }
+                else
+                {
+                    // Chéo phụ (/)
+                    e.Graphics.DrawLine(linePen, 0, h, w, 0);
+                }
+            }
         }
 
         public void StartTurnTimer()
